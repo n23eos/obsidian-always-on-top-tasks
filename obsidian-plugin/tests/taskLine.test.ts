@@ -7,6 +7,7 @@ import {
   parseDuration,
   stripFrontmatter,
   withChecked,
+  withText,
   STATUS_EMOJIS,
 } from "../src/core/taskLine";
 
@@ -191,5 +192,21 @@ describe("withChecked", () => {
 
   test("returns non-task lines unchanged", () => {
     expect(withChecked("plain", true)).toBe("plain");
+  });
+});
+
+describe("withText", () => {
+  test("replaces text, preserves emoji and time", () => {
+    expect(withText("- [ ] 🔵 Old text ⏱️ 0:01:23", "New text")).toBe(
+      "- [ ] 🔵 New text ⏱️ 0:01:23",
+    );
+  });
+
+  test("replaces text on a plain task", () => {
+    expect(withText("  * [x] Old", "New")).toBe("  * [x] New");
+  });
+
+  test("returns non-task lines unchanged", () => {
+    expect(withText("plain", "New")).toBe("plain");
   });
 });

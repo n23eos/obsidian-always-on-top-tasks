@@ -133,3 +133,10 @@ export function withChecked(line: string, checked: boolean): string {
   if (!parsed) return line;
   return serializeTaskLine({ ...parsed, checked });
 }
+
+/** Заменяет текст задачи, сохраняя чекбокс, эмодзи и время. */
+export function withText(line: string, text: string): string {
+  const parsed = parseTaskLine(line);
+  if (!parsed) return line;
+  return serializeTaskLine({ ...parsed, text });
+}

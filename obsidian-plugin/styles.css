@@ -163,3 +163,52 @@
 .tfa-overlay .tfa-strip-remove:hover {
   opacity: 1;
 }
+
+/* ---- добавление и редактирование задач ---- */
+
+/* прибита к низу окна — видна всегда, независимо от скролла */
+.tfa-overlay .tfa-add {
+  position: sticky;
+  bottom: 0;
+  padding: 6px 2px;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  display: flex;
+}
+
+.tfa-overlay .tfa-add-btn {
+  flex: 1;
+  height: 30px;
+  padding: 0 8px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.tfa-overlay .tfa-add-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.tfa-overlay .tfa-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 13px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  user-select: text;
+}
+
+.tfa-overlay .tfa-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}

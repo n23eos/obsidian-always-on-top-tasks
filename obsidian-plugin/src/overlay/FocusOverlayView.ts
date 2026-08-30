@@ -9,6 +9,7 @@ import {
   stripFrontmatter,
   withChecked,
   withStatusEmoji,
+  withText,
   STATUS_EMOJIS,
   type ParsedTaskLine,
 } from "../core/taskLine";
@@ -44,6 +45,10 @@ export class FocusOverlayView extends ItemView {
   private runningBaseSeconds = 0;
   /** Версия рендера: устаревший асинхронный рендер не должен трогать DOM. */
   private renderVersion = 0;
+  /** Черновик поля «+ задача». null = поле закрыто. Переживает ререндер. */
+  private addDraft: string | null = null;
+  /** Строка в режиме инлайн-редактирования (ререндер откладывается). */
+  private editingLineNo: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: TasksForFocusPlugin) {
     super(leaf);
@@ -124,8 +129,8 @@ export class FocusOverlayView extends ItemView {
     if (this.renderTimeout !== null) window.clearTimeout(this.renderTimeout);
     this.renderTimeout = window.setTimeout(() => {
       this.renderTimeout = null;
-      if (this.openStripLineNo !== null) {
-        this.pendingRender = true; // не рушим открытую палитру
+      if (this.openStripLineNo !== null || this.editingLineNo !== null) {
+        this.pendingRender = true; // не рушим открытую палитру / редактирование
         return;
       }
       safe(this.render());
@@ -180,11 +185,82 @@ export class FocusOverlayView extends ItemView {
 
     if (version !== this.renderVersion) return; // пришёл более свежий рендер
 
+    this.renderAddRow(built);
+
     this.contentEl.empty();
     while (built.firstChild) this.contentEl.appendChild(built.firstChild);
     this.runningTimeEl = runningRef.timeEl;
     this.runningBaseSeconds = runningRef.baseSeconds;
     if (this.runningTimeEl) this.tickRunningTimer();
+
+    // Поле добавления было открыто до ререндера — восстановим с черновиком.
+    if (this.addDraft !== null) {
+      const addRow = this.contentEl.querySelector<HTMLElement>(".tfa-add");
+      if (addRow) this.openAddInput(addRow);
+    }
+  }
+
+  // ---------- добавление задачи ----------
+
+  private renderAddRow(container: HTMLElement): void {
+    const addRow = container.createDiv({ cls: "tfa-add" });
+    this.renderAddRowButton(addRow);
+  }
+
+  private openAddInput(addRow: HTMLElement): void {
+    addRow.empty();
+    const input = addRow.createEl("input", {
+      cls: "tfa-input",
+      attr: { placeholder: "Новая задача… (Enter — ещё одна, Esc — закрыть)" },
+    });
+    input.value = this.addDraft ?? "";
+    input.addEventListener("input", () => {
+      this.addDraft = input.value;
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        const text = input.value.trim();
+        if (!text) return;
+        this.addDraft = "";
+        input.value = "";
+        safe(this.appendTask(text)); // поле остаётся открытым — можно серию
+      } else if (event.key === "Escape") {
+        this.closeAddInput(addRow);
+      }
+    });
+    input.addEventListener("blur", () => {
+      // Урок SimpleFocus: брошенное поле не должно застревать.
+      const text = input.value.trim();
+      if (text) safe(this.appendTask(text));
+      // input мог быть уже удалён ререндером — проверяем связь с DOM
+      if (addRow.isConnected) this.closeAddInput(addRow);
+      else this.addDraft = null;
+    });
+    input.focus();
+  }
+
+  private closeAddInput(addRow: HTMLElement): void {
+    this.addDraft = null;
+    addRow.empty();
+    this.renderAddRowButton(addRow);
+  }
+
+  private renderAddRowButton(addRow: HTMLElement): void {
+    const button = addRow.createEl("button", { cls: "tfa-add-btn", text: "+ задача" });
+    button.addEventListener("click", () => {
+      this.addDraft = "";
+      this.openAddInput(addRow);
+    });
+  }
+
+  /** Дописывает "- [ ] текст" в конец файла, сохраняя стиль хвостовой \n. */
+  private async appendTask(text: string): Promise<void> {
+    if (!this.file) return;
+    const taskLine = `- [ ] ${text}`;
+    await this.plugin.app.vault.process(this.file, (content) => {
+      if (content.trim() === "") return `${taskLine}\n`;
+      return content.endsWith("\n") ? `${content}${taskLine}\n` : `${content}\n${taskLine}`;
+    });
   }
 
   private renderTaskRow(
@@ -224,7 +300,10 @@ export class FocusOverlayView extends ItemView {
       !this.plugin.settings.showEmojiButton && parsed.statusEmoji
         ? `${parsed.statusEmoji} `
         : "";
-    row.createSpan({ cls: "tfa-text", text: textPrefix + parsed.text });
+    const textSpan = row.createSpan({ cls: "tfa-text", text: textPrefix + parsed.text });
+    textSpan.addEventListener("click", () =>
+      this.startEditTask(row, textSpan, lineNo, rawLine, parsed),
+    );
 
     const baseSeconds = parsed.elapsedSeconds ?? 0;
     const timeEl = row.createSpan({
@@ -325,6 +404,54 @@ export class FocusOverlayView extends ItemView {
     }
   }
 
+  // ---------- инлайн-редактирование текста задачи ----------
+
+  private startEditTask(
+    row: HTMLElement,
+    textSpan: HTMLElement,
+    lineNo: number,
+    rawLine: string,
+    parsed: ParsedTaskLine,
+  ): void {
+    if (this.editingLineNo !== null) return; // редактируем по одной
+    this.editingLineNo = lineNo;
+
+    textSpan.hide();
+    const input = row.createEl("input", { cls: "tfa-input tfa-edit" });
+    row.insertBefore(input, textSpan);
+    input.value = parsed.text;
+
+    const finish = () => {
+      this.editingLineNo = null;
+      input.remove();
+      textSpan.show();
+      if (this.pendingRender) {
+        this.pendingRender = false;
+        safe(this.render());
+      }
+    };
+
+    const commit = () => {
+      const newText = input.value.trim();
+      if (!newText || newText === parsed.text) {
+        finish(); // пусто или без изменений = отмена, задачу молча не удаляем
+        return;
+      }
+      finish();
+      safe(this.updateLine(lineNo, rawLine, (line) => withText(line, newText)));
+    };
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") commit();
+      else if (event.key === "Escape") finish();
+    });
+    input.addEventListener("blur", () => {
+      if (this.editingLineNo === lineNo) commit();
+    });
+    input.focus();
+    input.select();
+  }
+
   /** Атомарная правка одной строки с верификацией (lineNo + точный текст). */
   private async updateLine(
     lineNo: number,
@@ -333,16 +460,37 @@ export class FocusOverlayView extends ItemView {
   ): Promise<void> {
     if (!this.file) return;
     let applied = false;
+    let newLineText = "";
+    let newIndex = -1;
     await this.plugin.app.vault.process(this.file, (content) => {
       const lines = content.split("\n");
       const index = locateLine(lines, lineNo, expectedText);
       if (index === null) return content; // строка изменилась под нами — не портим
       applied = true;
-      return lines.map((line, i) => (i === index ? transform(line) : line)).join("\n");
+      newIndex = index;
+      newLineText = transform(lines[index]);
+      return lines.map((line, i) => (i === index ? newLineText : line)).join("\n");
     });
     if (!applied) {
       new Notice("Tasks for Focus: строка изменилась, действие не применено. Попробуй ещё раз.");
       this.scheduleRender();
+      return;
+    }
+
+    // Если переписали строку бегущего таймера (текст, эмодзи, чекбокс) —
+    // перепривязываем якорь, иначе стоп таймера её не найдёт.
+    const timer = this.plugin.settings.runningTimer;
+    if (
+      timer &&
+      timer.filePath === this.file.path &&
+      timer.lineText === expectedText &&
+      newLineText !== expectedText
+    ) {
+      this.plugin.settings = {
+        ...this.plugin.settings,
+        runningTimer: { ...timer, lineNo: newIndex, lineText: newLineText },
+      };
+      await this.plugin.saveSettings();
     }
   }
 
