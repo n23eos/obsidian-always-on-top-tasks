@@ -26,6 +26,7 @@ const pluginsDir = join(vaultPath, ".obsidian", "plugins");
 const linkPath = join(pluginsDir, "tasks-for-focus-adhd");
 
 mkdirSync(pluginsDir, { recursive: true });
-if (existsSync(linkPath)) rmSync(linkPath, { recursive: true });
+// force: true убирает и битые симлинки (existsSync по ним врёт — идёт по ссылке)
+rmSync(linkPath, { recursive: true, force: true });
 symlinkSync(pluginDir, linkPath, "dir");
 console.log(`Linked ${linkPath} -> ${pluginDir}`);
