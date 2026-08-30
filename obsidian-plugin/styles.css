@@ -174,6 +174,23 @@
   background: var(--background-primary);
   border-top: 1px solid var(--background-modifier-border);
   display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* счётчик сделано/всего и суммарное время в футере */
+.tfa-overlay .tfa-count {
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tfa-overlay .tfa-total {
+  color: var(--color-blue, #2f81f7);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  white-space: nowrap;
+  padding-right: 4px;
 }
 
 .tfa-overlay .tfa-add-btn {

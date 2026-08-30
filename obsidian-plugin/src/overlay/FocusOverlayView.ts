@@ -45,6 +45,9 @@ export class FocusOverlayView extends ItemView {
   private runningBaseSeconds = 0;
   /** Версия рендера: устаревший асинхронный рендер не должен трогать DOM. */
   private renderVersion = 0;
+  /** Суммарное время в футере: элемент и база (без бегущей сессии). */
+  private totalEl: HTMLElement | null = null;
+  private totalBaseSeconds = 0;
   /** Черновик поля «+ задача». null = поле закрыто. Переживает ререндер. */
   private addDraft: string | null = null;
   /** Строка в режиме инлайн-редактирования (ререндер откладывается). */
@@ -162,6 +165,9 @@ export class FocusOverlayView extends ItemView {
       timeEl: null,
       baseSeconds: 0,
     };
+    let totalSeconds = 0;
+    let taskCount = 0;
+    let doneCount = 0;
 
     let mdBuffer: string[] = [];
     const flushMarkdown = async () => {
@@ -179,18 +185,31 @@ export class FocusOverlayView extends ItemView {
         continue;
       }
       await flushMarkdown();
+      totalSeconds += parsed.elapsedSeconds ?? 0;
+      taskCount += 1;
+      if (parsed.checked) doneCount += 1;
       this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef);
     }
     await flushMarkdown();
 
     if (version !== this.renderVersion) return; // пришёл более свежий рендер
 
-    this.renderAddRow(built);
+    const footer = built.createDiv({ cls: "tfa-add" });
+    this.renderAddRowButton(footer);
+    if (taskCount > 0) {
+      footer.createSpan({ cls: "tfa-count", text: `${doneCount}/${taskCount}` });
+    }
+    const totalTimeEl =
+      totalSeconds > 0 || runningRef.timeEl
+        ? footer.createSpan({ cls: "tfa-total", text: `Σ ${formatDuration(totalSeconds)}` })
+        : null;
 
     this.contentEl.empty();
     while (built.firstChild) this.contentEl.appendChild(built.firstChild);
     this.runningTimeEl = runningRef.timeEl;
     this.runningBaseSeconds = runningRef.baseSeconds;
+    this.totalEl = totalTimeEl;
+    this.totalBaseSeconds = totalSeconds;
     if (this.runningTimeEl) this.tickRunningTimer();
 
     // Поле добавления было открыто до ререндера — восстановим с черновиком.
@@ -201,11 +220,6 @@ export class FocusOverlayView extends ItemView {
   }
 
   // ---------- добавление задачи ----------
-
-  private renderAddRow(container: HTMLElement): void {
-    const addRow = container.createDiv({ cls: "tfa-add" });
-    this.renderAddRowButton(addRow);
-  }
 
   private openAddInput(addRow: HTMLElement): void {
     addRow.empty();
@@ -344,10 +358,8 @@ export class FocusOverlayView extends ItemView {
       }
     }
 
-    // Галочка → ✅; снятие галочки эмодзи не трогает.
-    const transform = parsed.checked
-      ? (line: string) => withChecked(line, false)
-      : (line: string) => withStatusEmoji(withChecked(line, true), "✅");
+    // Только чекбокс: ✅ не ставим — иначе двойная галочка в строке.
+    const transform = (line: string) => withChecked(line, !parsed.checked);
 
     await this.updateLine(targetLineNo, targetText, transform);
     this.plugin.overlay.blur();
@@ -501,5 +513,7 @@ export class FocusOverlayView extends ItemView {
     if (!timer || !this.runningTimeEl) return;
     const sessionSeconds = Math.max(0, Math.floor((Date.now() - timer.startedAt) / 1000));
     this.runningTimeEl.setText(formatDuration(this.runningBaseSeconds + sessionSeconds));
+    // Суммарное время внизу тикает вместе с бегущей сессией.
+    this.totalEl?.setText(`Σ ${formatDuration(this.totalBaseSeconds + sessionSeconds)}`);
   }
 }

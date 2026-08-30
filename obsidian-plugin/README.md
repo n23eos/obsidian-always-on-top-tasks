@@ -22,7 +22,7 @@ fullscreen apps too.
   that's the whole point of focus
 - **Emoji status** — one click opens an inline palette:
   ⬜ 🔄 ⏸️ 🔜 ⛔ ✅ ❗ 🔴 🟠 🟡 🟢 🔵 🟣
-- **Checkbox integration** — checking a task sets ✅ and stops its timer
+- **Checkbox integration** — checking a task stops its running timer
 - **Honest data** — everything lives in the note itself:
 
 ```
@@ -51,8 +51,8 @@ fullscreen apps too.
 Not in the Community Plugins catalog yet — install manually:
 
 ```bash
-git clone https://github.com/n23eos/simple-focus-adhd
-cd simple-focus-adhd/obsidian-plugin
+git clone https://github.com/n23eos/obsidian-always-on-top-tasks
+cd obsidian-always-on-top-tasks/obsidian-plugin
 npm install
 npm run build
 ```
