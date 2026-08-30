@@ -1,0 +1,10 @@
+{
+  "id": "tasks-for-focus-adhd",
+  "name": "Tasks for Focus ADHD",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Pin a note as an always-on-top focus overlay with per-task stopwatch and emoji status.",
+  "author": "n23eos",
+  "isDesktopOnly": true,
+  "authorUrl": "https://github.com/n23eos"
+}

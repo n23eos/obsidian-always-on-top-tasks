@@ -1,0 +1,13 @@
+# Swift
+.build/
+dist/
+*.xcodeproj
+
+# Obsidian plugin
+obsidian-plugin/node_modules/
+obsidian-plugin/main.js
+obsidian-plugin/.env
+
+# OS
+.DS_Store
+obsidian-plugin/data.json
