@@ -7,7 +7,7 @@ that fits your workflow, or use both.
 | Tool | What it is | Best for |
 |---|---|---|
 | [**SimpleFocus**](#simplefocus-macos-app) | Native macOS menu bar app with a floating task panel | Standalone use, no Obsidian required |
-| [**Tasks for Focus ADHD**](obsidian-plugin/) | Obsidian plugin: pins a note as an always-on-top overlay | Your tasks already live in Obsidian |
+| [**Always-on-Top Tasks: ADHD Focus Timer**](obsidian-plugin/) | Obsidian plugin: pins a note as an always-on-top overlay | Your tasks already live in Obsidian |
 
 ---
 
@@ -56,7 +56,7 @@ Sources/SimpleFocus/       the app: NSPanel (.floating, nonactivating),
 
 ---
 
-## Tasks for Focus ADHD (Obsidian plugin)
+## Always-on-Top Tasks: ADHD Focus Timer (Obsidian plugin)
 
 Pins any note as a compact always-on-top overlay at the edge of your screen.
 Every `- [ ]` task line gets a **stopwatch** and an **emoji status** button —

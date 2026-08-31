@@ -1,4 +1,4 @@
-# Tasks for Focus ADHD
+# Always-on-Top Tasks: ADHD Focus Timer
 
 An Obsidian plugin that pins a note **on top of every window** at the edge of
 your screen — an attention anchor against ADHD context-switching. Each task
@@ -23,6 +23,10 @@ fullscreen apps too.
 - **Emoji status** — one click opens an inline palette:
   ⬜ 🔄 ⏸️ 🔜 ⛔ ✅ ❗ 🔴 🟠 🟡 🟢 🔵 🟣
 - **Checkbox integration** — checking a task stops its running timer
+- **Gentle breaks (optional)** — a ☕ button starts a break stopwatch (and
+  commits the running task timer); total break time accumulates in the note
+  as a `☕ H:MM:SS` line. After N minutes of continuous work you get a soft
+  reminder — no forced pomodoro stops. Can be disabled in settings
 - **Honest data** — everything lives in the note itself:
 
 ```
