@@ -62,6 +62,27 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Перерывы")
+      .setDesc("Кнопка ☕ в футере (стопит таймер задачи, считает отдых) и мягкое напоминание при долгой сессии. Суммарное время перерывов копится в заметке строкой «☕ Ч:ММ:СС».")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.breaksEnabled).onChange(async (value) => {
+          await this.applyPatch({ breaksEnabled: value });
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Напоминать о перерыве через (минут)")
+      .addSlider((slider) =>
+        slider
+          .setLimits(20, 90, 5)
+          .setValue(this.plugin.settings.breakReminderMinutes)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            await this.applyPatch({ breakReminderMinutes: value });
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Кнопка статуса-эмодзи")
       .setDesc("Выключи, если занимает место: статус останется видимым текстом в строке.")
       .addToggle((toggle) =>

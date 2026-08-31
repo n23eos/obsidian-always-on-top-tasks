@@ -9,6 +9,10 @@ export interface PluginSettings {
   edge: OverlayEdge;
   overlayWidth: number;
   opacity: number;
+  /** Перерывы: кнопка ☕ в футере и напоминание при долгой сессии. */
+  breaksEnabled: boolean;
+  /** Через сколько минут непрерывной сессии напомнить о перерыве. */
+  breakReminderMinutes: number;
   /** Показывать кнопку эмодзи-статуса в строке задачи. */
   showEmojiButton: boolean;
   /** Экспериментально: окно не принимает клики вовсе. */
@@ -24,6 +28,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   edge: "right",
   overlayWidth: 340,
   opacity: 0.95,
+  breaksEnabled: true,
+  breakReminderMinutes: 50,
   showEmojiButton: true,
   clickThrough: false,
   nonFocusable: false,

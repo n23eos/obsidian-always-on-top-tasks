@@ -33,6 +33,13 @@ interface OverlayViewState extends Record<string, unknown> {
   filePath?: string;
 }
 
+/** Что рендер узнал о бегущей задаче: элемент времени и данные для шапки. */
+interface RunningRef {
+  timeEl: HTMLElement | null;
+  baseSeconds: number;
+  task: { lineNo: number; rawLine: string; text: string } | null;
+}
+
 export class FocusOverlayView extends ItemView {
   private file: TFile | null = null;
   private renderTimeout: number | null = null;
@@ -43,10 +50,16 @@ export class FocusOverlayView extends ItemView {
   /** Элемент времени бегущей задачи — тикаем только его, без ререндера. */
   private runningTimeEl: HTMLElement | null = null;
   private runningBaseSeconds = 0;
+  /** Время в закреплённой шапке. База та же, что у runningBaseSeconds. */
+  private pinnedTimeEl: HTMLElement | null = null;
   /** Версия рендера: устаревший асинхронный рендер не должен трогать DOM. */
   private renderVersion = 0;
   /** Суммарное время в футере: элемент и база (без бегущей сессии). */
   private totalEl: HTMLElement | null = null;
+  /** Кнопка перерыва в футере — тикаем её текст во время отдыха. */
+  private breakEl: HTMLElement | null = null;
+  /** startedAt сессии, о которой уже напомнили (Notice один раз за сессию). */
+  private lastReminderStartedAt: number | null = null;
   private totalBaseSeconds = 0;
   /** Черновик поля «+ задача». null = поле закрыто. Переживает ререндер. */
   private addDraft: string | null = null;
@@ -148,6 +161,7 @@ export class FocusOverlayView extends ItemView {
     if (!this.file) {
       this.contentEl.empty();
       this.runningTimeEl = null;
+      this.pinnedTimeEl = null;
       this.contentEl.createDiv({ cls: "tfa-empty", text: "Заметка не выбрана или удалена." });
       return;
     }
@@ -161,9 +175,10 @@ export class FocusOverlayView extends ItemView {
     const lines = stripped.split("\n");
 
     const built = createDiv();
-    const runningRef: { timeEl: HTMLElement | null; baseSeconds: number } = {
+    const runningRef: RunningRef = {
       timeEl: null,
       baseSeconds: 0,
+      task: null,
     };
     let totalSeconds = 0;
     let taskCount = 0;
@@ -194,6 +209,9 @@ export class FocusOverlayView extends ItemView {
 
     if (version !== this.renderVersion) return; // пришёл более свежий рендер
 
+    // Шапка строится последней (нужен runningRef), но встаёт первой в DOM.
+    const pinnedTimeEl = this.renderPinnedHeader(built, runningRef);
+
     const footer = built.createDiv({ cls: "tfa-add" });
     this.renderAddRowButton(footer);
     if (taskCount > 0) {
@@ -204,12 +222,25 @@ export class FocusOverlayView extends ItemView {
         ? footer.createSpan({ cls: "tfa-total", text: `Σ ${formatDuration(totalSeconds)}` })
         : null;
 
+    let breakButton: HTMLElement | null = null;
+    if (this.plugin.settings.breaksEnabled) {
+      const onBreak = this.plugin.timers.breakStartedAt !== null;
+      breakButton = footer.createEl("button", {
+        cls: `tfa-btn tfa-break${onBreak ? " tfa-break-on" : ""}`,
+        text: "☕",
+        attr: { "aria-label": onBreak ? "Закончить перерыв" : "Перерыв" },
+      });
+      breakButton.addEventListener("click", () => safe(this.onToggleBreak()));
+    }
+
     this.contentEl.empty();
     while (built.firstChild) this.contentEl.appendChild(built.firstChild);
     this.runningTimeEl = runningRef.timeEl;
     this.runningBaseSeconds = runningRef.baseSeconds;
+    this.pinnedTimeEl = pinnedTimeEl;
     this.totalEl = totalTimeEl;
     this.totalBaseSeconds = totalSeconds;
+    this.breakEl = breakButton;
     if (this.runningTimeEl) this.tickRunningTimer();
 
     // Поле добавления было открыто до ререндера — восстановим с черновиком.
@@ -217,6 +248,47 @@ export class FocusOverlayView extends ItemView {
       const addRow = this.contentEl.querySelector<HTMLElement>(".tfa-add");
       if (addRow) this.openAddInput(addRow);
     }
+  }
+
+  /**
+   * Закреплённая сверху строка с текущей задачей. Есть только пока в этой
+   * заметке бежит таймер: стоп → ререндер → шапки нет.
+   * Возвращает элемент времени (его тикаем) или null, если шапки нет.
+   */
+  private renderPinnedHeader(built: HTMLElement, runningRef: RunningRef): HTMLElement | null {
+    const task = runningRef.task;
+    if (!task) return null;
+
+    const pinned = createDiv({ cls: "tfa-pinned" });
+    built.insertBefore(pinned, built.firstChild);
+
+    pinned.createSpan({ cls: "tfa-pinned-text", text: task.text });
+    const timeEl = pinned.createSpan({
+      cls: "tfa-time",
+      text: formatDuration(runningRef.baseSeconds),
+    });
+
+    const stopButton = pinned.createEl("button", {
+      cls: "tfa-btn tfa-timer tfa-timer-on",
+      text: "⏹",
+      attr: { "aria-label": "Остановить таймер" },
+    });
+    stopButton.addEventListener("click", () =>
+      safe(this.onToggleTimer(task.lineNo, task.rawLine)),
+    );
+
+    return timeEl;
+  }
+
+  private async onToggleBreak(): Promise<void> {
+    if (!this.file) return;
+    if (this.plugin.timers.breakStartedAt !== null) {
+      await this.plugin.timers.endBreak(); // пишет ☕-строку в заметку
+    } else {
+      await this.plugin.timers.startBreak(this.file.path); // коммитит бегущий таймер
+    }
+    this.scheduleRender();
+    this.plugin.overlay.blur();
   }
 
   // ---------- добавление задачи ----------
@@ -282,7 +354,7 @@ export class FocusOverlayView extends ItemView {
     lineNo: number,
     rawLine: string,
     parsed: ParsedTaskLine,
-    runningRef: { timeEl: HTMLElement | null; baseSeconds: number },
+    runningRef: RunningRef,
   ): void {
     const isRunning = this.file
       ? this.plugin.timers.isRunningOn(this.file.path, rawLine)
@@ -335,6 +407,7 @@ export class FocusOverlayView extends ItemView {
     if (isRunning) {
       runningRef.timeEl = timeEl;
       runningRef.baseSeconds = baseSeconds;
+      runningRef.task = { lineNo, rawLine, text: parsed.text };
     }
   }
 
@@ -509,11 +582,34 @@ export class FocusOverlayView extends ItemView {
   // ---------- тик ----------
 
   private tickRunningTimer(): void {
+    // Секундомер перерыва (идёт и без бегущего таймера задачи).
+    const breakStartedAt = this.plugin.timers.breakStartedAt;
+    if (this.breakEl && breakStartedAt !== null) {
+      const breakSeconds = Math.max(0, Math.floor((Date.now() - breakStartedAt) / 1000));
+      this.breakEl.setText(`☕ ${formatDuration(breakSeconds)}`);
+    }
+
     const timer = this.plugin.settings.runningTimer;
     if (!timer || !this.runningTimeEl) return;
     const sessionSeconds = Math.max(0, Math.floor((Date.now() - timer.startedAt) / 1000));
-    this.runningTimeEl.setText(formatDuration(this.runningBaseSeconds + sessionSeconds));
+    const elapsed = formatDuration(this.runningBaseSeconds + sessionSeconds);
+    this.runningTimeEl.setText(elapsed);
+    this.pinnedTimeEl?.setText(elapsed);
     // Суммарное время внизу тикает вместе с бегущей сессией.
     this.totalEl?.setText(`Σ ${formatDuration(this.totalBaseSeconds + sessionSeconds)}`);
+
+    // Мягкое напоминание о перерыве: подсветка + один Notice за сессию.
+    const { breaksEnabled, breakReminderMinutes } = this.plugin.settings;
+    if (breaksEnabled && sessionSeconds >= breakReminderMinutes * 60) {
+      this.runningTimeEl.addClass("tfa-time-overdue");
+      this.pinnedTimeEl?.addClass("tfa-time-overdue");
+      if (this.lastReminderStartedAt !== timer.startedAt) {
+        this.lastReminderStartedAt = timer.startedAt;
+        new Notice(
+          `Tasks for Focus: без перерыва уже ${breakReminderMinutes} мин — может, пауза? ☕`,
+          8000,
+        );
+      }
+    }
   }
 }

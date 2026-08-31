@@ -4,10 +4,48 @@
 import { Notice, TFile } from "obsidian";
 import type TasksForFocusPlugin from "./main";
 import { commitSession, type CommitResult, type RunningTimer } from "./core/timer";
+import { addBreakTime } from "./core/breakLine";
 import { formatDuration } from "./core/taskLine";
 
 export class TimerService {
+  /** Начало перерыва (epoch ms). Не персистится: рестарт Obsidian = перерыв забыт. */
+  breakStartedAt: number | null = null;
+  /** Заметка, в которую запишется суммарное время перерывов. */
+  private breakFilePath: string | null = null;
+
   constructor(private readonly plugin: TasksForFocusPlugin) {}
+
+  /** Перерыв: коммитит бегущий таймер задачи и запускает секундомер отдыха. */
+  async startBreak(filePath: string): Promise<void> {
+    await this.stop();
+    this.breakStartedAt = Date.now();
+    this.breakFilePath = filePath;
+  }
+
+  /** Конец перерыва: время добавляется к строке "☕ Ч:ММ:СС" в заметке. */
+  async endBreak(): Promise<void> {
+    const startedAt = this.breakStartedAt;
+    const filePath = this.breakFilePath;
+    this.breakStartedAt = null;
+    this.breakFilePath = null;
+    if (startedAt === null || !filePath) return;
+
+    const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+    if (seconds === 0) return;
+
+    const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof TFile)) return; // заметку удалили — перерыв некуда писать
+
+    try {
+      await this.plugin.app.vault.process(file, (content) => addBreakTime(content, seconds));
+    } catch (error) {
+      console.error("Tasks for Focus: failed to write break time", error);
+      new Notice(
+        `Tasks for Focus: не удалось записать перерыв ${formatDuration(seconds)} — добавь вручную к строке ☕.`,
+        10000,
+      );
+    }
+  }
 
   get running(): RunningTimer | null {
     return this.plugin.settings.runningTimer;
@@ -21,6 +59,7 @@ export class TimerService {
 
   /** Старт. Бегущий таймер (если есть) сначала останавливается и коммитится. */
   async start(filePath: string, lineNo: number, lineText: string): Promise<void> {
+    await this.endBreak(); // работа началась — перерыв записан в заметку
     if (this.running) await this.stop();
     await this.setRunning({ filePath, lineNo, lineText, startedAt: Date.now() });
   }

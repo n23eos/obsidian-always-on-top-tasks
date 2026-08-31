@@ -43,6 +43,32 @@
   padding: 16px 4px;
 }
 
+/* ---- закреплённая шапка с текущей задачей ---- */
+
+/* прибита к верху окна — видна всегда, пока бежит таймер */
+.tfa-overlay .tfa-pinned {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 2px;
+  margin-bottom: 4px;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* длинное название не должно раздувать шапку — одна строка с многоточием */
+.tfa-overlay .tfa-pinned-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 /* ---- строка задачи ---- */
 
 .tfa-overlay .tfa-task {
@@ -228,4 +254,26 @@
 .tfa-overlay .tfa-input:focus {
   border-color: var(--interactive-accent);
   outline: none;
+}
+
+/* ---- перерыв ---- */
+
+.tfa-overlay .tfa-break {
+  width: auto;
+  min-width: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tfa-overlay .tfa-break-on {
+  color: var(--color-orange, #d29922);
+  background: color-mix(in srgb, var(--color-orange, #d29922) 12%, transparent);
+}
+
+/* сессия дольше порога — время задачи янтарным, намёк на паузу */
+.tfa-overlay .tfa-time-overdue {
+  color: var(--color-orange, #d29922);
 }
