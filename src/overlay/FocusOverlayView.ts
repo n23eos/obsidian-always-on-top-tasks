@@ -102,7 +102,7 @@ export class FocusOverlayView extends ItemView {
     return { filePath: this.file?.path };
   }
 
-  async onOpen(): Promise<void> {
+  onOpen(): Promise<void> {
     this.contentEl.addClass("tfa-overlay");
     // Хром прячем только в popout-окне — не в главном (вдруг вью перетащили).
     if (this.containerEl.win !== window) {
@@ -135,15 +135,18 @@ export class FocusOverlayView extends ItemView {
     this.registerInterval(
       window.setInterval(() => this.tickRunningTimer(), 1000),
     );
+
+    return Promise.resolve();
   }
 
-  async onClose(): Promise<void> {
+  onClose(): Promise<void> {
     // Отложенный ререндер не должен сработать по уже закрытой вьюхе.
     if (this.renderTimeout !== null) {
       window.clearTimeout(this.renderTimeout);
       this.renderTimeout = null;
     }
     this.containerEl.win?.document.body.classList.remove("tfa-popout-body");
+    return Promise.resolve();
   }
 
   // ---------- рендер ----------

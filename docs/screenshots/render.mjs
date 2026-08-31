@@ -21,7 +21,7 @@ const tmpDir = join(here, ".tmp");
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const SCALE = 2; // retina: a 700px-wide page becomes a 1400px-wide PNG
 
-const pluginStyles = readFileSync(join(repoRoot, "obsidian-plugin", "styles.css"), "utf8");
+const pluginStyles = readFileSync(join(repoRoot, "styles.css"), "utf8");
 
 /** Obsidian's dark-theme variables that styles.css relies on. */
 const THEME = `

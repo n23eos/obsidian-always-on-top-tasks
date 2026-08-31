@@ -83,14 +83,16 @@ survives an Obsidian restart.
 
 ## Installation
 
-Once the plugin is accepted into the catalog: **Settings → Community plugins →
-Browse**, search for "Always-on-Top Tasks", install and enable.
+Requires Obsidian 1.13 or later, desktop only.
 
-Until then, install manually:
+**Settings → Community plugins → Browse**, search for "Always-on-Top Tasks",
+install and enable.
+
+To install manually instead:
 
 ```bash
 git clone https://github.com/n23eos/obsidian-always-on-top-tasks
-cd obsidian-always-on-top-tasks/obsidian-plugin
+cd obsidian-always-on-top-tasks
 npm install
 npm run build
 ```
@@ -129,6 +131,8 @@ switches — click-through and never-take-focus — are off by default.
 
 - **Desktop only.** The overlay needs Electron window APIs, which mobile
   Obsidian does not have.
+- **Obsidian 1.13 or later**, because the settings use the declarative settings
+  API. Older versions can still install release 0.4.0.
 - **Clicking the overlay activates Obsidian.** Electron has no equivalent of a
   macOS non-activating panel. Focus is released right after each button click,
   but that one focus switch is unavoidable.
@@ -141,10 +145,10 @@ switches — click-through and never-take-focus — are off by default.
 ## Development
 
 ```bash
-cd obsidian-plugin
 npm install
 npm run dev     # watch build
 npm test        # vitest — unit tests for the pure core
+npm run lint    # the same typed rules the catalog review runs
 ```
 
 ```
@@ -155,10 +159,12 @@ src/core/       pure logic, no Obsidian imports (fully unit-tested)
 src/electron.ts BrowserWindow access: always-on-top, geometry (all guarded)
 src/TimerService.ts  the single running timer, atomic writes via vault.process
 src/overlay/    popout window controller and the overlay view
+macos/          the standalone SimpleFocus app, unrelated to the plugin build
 ```
 
-Put `VAULT_PATH=/path/to/vault` into `obsidian-plugin/.env` and run
-`npm run install-local` to symlink the plugin into your vault.
+Put `VAULT_PATH=/path/to/vault` into `.env` and run `npm run install-local`:
+it creates the plugin folder in your vault and symlinks `main.js`,
+`manifest.json` and `styles.css` into it, so `npm run dev` reloads live.
 
 ## Attribution
 

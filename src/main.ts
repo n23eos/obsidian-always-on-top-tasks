@@ -71,7 +71,10 @@ export default class TasksForFocusPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) ?? {}) };
+    // loadData() отдаёт any: сужаем до частичных настроек, чтобы мусор из
+    // data.json не расплывался по типам.
+    const stored = (await this.loadData()) as Partial<PluginSettings> | null;
+    this.settings = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
   }
 
   async saveSettings(): Promise<void> {

@@ -1,19 +1,19 @@
-# Swift
-.build/
-dist/
+# Obsidian plugin (the repository root is the plugin root)
+node_modules/
+main.js
+.env
+data.json
+
+# macOS app
+macos/.build/
+macos/dist/
 *.xcodeproj
-
-# Obsidian plugin
-obsidian-plugin/node_modules/
-obsidian-plugin/main.js
-obsidian-plugin/.env
-
-# OS
-.DS_Store
-obsidian-plugin/data.json
 
 # Screenshot render workspace
 docs/screenshots/.tmp/
 
 # Test vault built from release assets
 .test-vault/
+
+# OS
+.DS_Store

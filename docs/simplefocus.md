@@ -29,18 +29,20 @@ Obsidian required.
 ## Build & run
 
 ```bash
+cd macos
 ./build_app.sh
 open dist/SimpleFocus.app
 ```
 
-Requirements: macOS 14+, Xcode Command Line Tools. Tests: `swift test`.
+Requirements: macOS 14+, Xcode Command Line Tools. Tests: `swift test` from
+`macos/`.
 
 ## Architecture
 
 ```
-Sources/SimpleFocusCore/   pure logic, no AppKit (unit-tested, immutable model)
-Sources/SimpleFocus/       the app: NSPanel (.floating, nonactivating),
-                           SwiftUI content, menu bar, Carbon hotkey
+macos/Sources/SimpleFocusCore/   pure logic, no AppKit (unit-tested, immutable)
+macos/Sources/SimpleFocus/       the app: NSPanel (.floating, nonactivating),
+                                 SwiftUI content, menu bar, Carbon hotkey
 ```
 
 ## Why this exists next to the plugin

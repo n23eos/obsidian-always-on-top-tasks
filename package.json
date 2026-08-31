@@ -7,6 +7,7 @@
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
+    "lint": "eslint src tests",
     "test": "vitest run --passWithNoTests",
     "install-local": "node scripts/install-local.mjs",
     "bump": "node scripts/bump-version.mjs"
@@ -14,8 +15,10 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.24.0",
+    "eslint": "^9.39.5",
     "obsidian": "latest",
     "typescript": "^5.6.0",
+    "typescript-eslint": "^8.68.0",
     "vitest": "^2.1.0"
   }
 }
