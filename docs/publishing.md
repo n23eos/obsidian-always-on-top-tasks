@@ -57,13 +57,16 @@ gh attestation verify main.js --repo n23eos/obsidian-always-on-top-tasks
 
 `minAppVersion` is `1.4.0`. The review recommends the declarative settings API
 (`getSettingDefinitions`), which would make the settings searchable, but it only
-exists from Obsidian 1.13.0. Release 0.5.0 tried it and was rolled back in 0.6.0:
-1.13 was not yet offered as a download to ordinary users, so the floor cut off
-people who could not update even if they wanted to. Revisit once 1.13 is widely
-available — the implementation is in the history of `src/SettingsTab.ts`.
+exists from Obsidian 1.13.0. Release 0.5.0 tried it and raised the floor to
+1.13.0 — a version Obsidian was not yet offering to ordinary users, so the
+release was unreachable for the people it was meant for. It was rolled back in
+0.6.0 and, having never been downloaded, deleted along with its tag and its
+`versions.json` entry. Revisit once 1.13 is widely available; the implementation
+is in the history of `src/SettingsTab.ts`.
 
-Never rewrite older `versions.json` entries: that is how Obsidian decides which
-plugin version an older app may install.
+Deleting that entry was safe only because nobody had installed 0.5.0. As a rule,
+never rewrite `versions.json` entries for releases users may already run: that
+map is how Obsidian decides which plugin version an older app may install.
 
 ## The question a reviewer will ask
 
