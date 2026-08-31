@@ -21,10 +21,10 @@ runs, so check it before tagging.
 ```bash
 npm run lint                # the same typed rules the review uses
 npm test
-npm run bump 0.5.0          # manifest.json, package.json, versions.json
-git commit -am "chore: release 0.5.0"
-git tag 0.5.0               # no "v" prefix — Obsidian requirement
-git push origin main 0.5.0
+npm run bump 0.7.0          # manifest.json, package.json, versions.json
+git commit -am "chore: release 0.7.0"
+git tag 0.7.0               # no "v" prefix — Obsidian requirement
+git push origin main 0.7.0
 ```
 
 GitHub Actions lints, tests, builds, attests the artifacts and attaches exactly
@@ -32,7 +32,7 @@ three assets to the release — `main.js`, `manifest.json`, `styles.css` — as
 individual files at the top level, not inside a zip.
 
 ```bash
-gh release view 0.5.0 --json assets --jq '.assets[].name'
+gh release view 0.7.0 --json assets --jq '.assets[].name'
 gh attestation verify main.js --repo n23eos/obsidian-always-on-top-tasks
 ```
 
