@@ -39,9 +39,10 @@ export class TimerService {
     try {
       await this.plugin.app.vault.process(file, (content) => addBreakTime(content, seconds));
     } catch (error) {
-      console.error("Tasks for Focus: failed to write break time", error);
+      console.error("Always-on-Top Tasks: failed to write break time", error);
       new Notice(
-        `Tasks for Focus: не удалось записать перерыв ${formatDuration(seconds)} — добавь вручную к строке ☕.`,
+        `Always-on-Top Tasks: could not save the ${formatDuration(seconds)} break. ` +
+          "Add it to the ☕ line by hand.",
         10000,
       );
     }
@@ -75,7 +76,10 @@ export class TimerService {
     const file = this.plugin.app.vault.getAbstractFileByPath(timer.filePath);
     if (!(file instanceof TFile)) {
       const lost = formatDuration(Math.floor((Date.now() - timer.startedAt) / 1000));
-      new Notice(`Tasks for Focus: файл «${timer.filePath}» не найден. Сессия ${lost} не записана.`, 10000);
+      new Notice(
+        `Always-on-Top Tasks: file "${timer.filePath}" not found. The ${lost} session was not saved.`,
+        10000,
+      );
       await this.setRunning(null);
       return null;
     }
@@ -88,11 +92,11 @@ export class TimerService {
       });
     } catch (error) {
       // Запись сорвалась (диск, права, sync-конфликт): время не теряем молча.
-      console.error("Tasks for Focus: failed to write timer session", error);
+      console.error("Always-on-Top Tasks: failed to write timer session", error);
       const lost = formatDuration(Math.floor((Date.now() - timer.startedAt) / 1000));
       new Notice(
-        `Tasks for Focus: не удалось записать сессию ${lost} в «${timer.filePath}».\n` +
-          `Добавь вручную к задаче: ${timer.lineText}`,
+        `Always-on-Top Tasks: could not write the ${lost} session to "${timer.filePath}".\n` +
+          `Add it to this task by hand: ${timer.lineText}`,
         15000,
       );
       result = null;
@@ -110,22 +114,25 @@ export class TimerService {
 
     if (result.kind === "not-found") {
       new Notice(
-        `Tasks for Focus: задача «${timer.lineText}» изменилась или удалена.\n` +
-          `Сессия ${session} не записана — добавь вручную.`,
+        `Always-on-Top Tasks: the task "${timer.lineText}" was changed or removed.\n` +
+          `The ${session} session was not saved — add it by hand.`,
         15000,
       );
       return;
     }
     if (result.kind === "ambiguous") {
       new Notice(
-        `Tasks for Focus: несколько одинаковых строк «${timer.lineText}».\n` +
-          `Сессия ${session} не записана — добавь вручную.`,
+        `Always-on-Top Tasks: several identical lines "${timer.lineText}".\n` +
+          `The ${session} session was not saved — add it by hand.`,
         15000,
       );
       return;
     }
     if (result.isLongSession) {
-      new Notice(`Tasks for Focus: записано ${session} — похоже, таймер был забыт. Проверь.`, 10000);
+      new Notice(
+        `Always-on-Top Tasks: saved ${session} — looks like the timer was left running. Check it.`,
+        10000,
+      );
     }
   }
 

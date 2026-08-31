@@ -75,7 +75,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px;
+  /* глубина вложенности приходит из JS одной переменной, а не инлайн-стилем */
+  padding: 2px 2px 2px calc(2px + var(--tfa-indent, 0px));
   border-radius: 6px;
   min-height: 30px;
 }

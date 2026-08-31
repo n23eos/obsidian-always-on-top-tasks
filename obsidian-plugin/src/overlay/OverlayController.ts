@@ -72,7 +72,8 @@ export class OverlayController {
       await sleep(PIN_RETRY_DELAY_MS);
     }
     new Notice(
-      "Tasks for Focus: окно открыто, но закрепить поверх не удалось (Electron API недоступен).",
+      "Always-on-Top Tasks: the window opened, but could not be pinned on top " +
+        "(the Electron API is unavailable).",
     );
   }
 
@@ -103,18 +104,24 @@ export class OverlayController {
     if (this.browserWindow) blurWindow(this.browserWindow);
   }
 
+  /** Закрытие по команде пользователя: снять пин и убрать окно. */
   close(): void {
-    if (this.browserWindow) releaseWindow(this.browserWindow);
+    this.release();
     this.leaf?.detach();
     this.forget();
+  }
+
+  /**
+   * Снять always-on-top/прозрачность, не трогая раскладку. Используется при
+   * выгрузке плагина: гайдлайн Obsidian запрещает detach() в onunload, поэтому
+   * окно остаётся обычным popout — пользователь закроет его сам.
+   */
+  release(): void {
+    if (this.browserWindow) releaseWindow(this.browserWindow);
   }
 
   private forget(): void {
     this.leaf = null;
     this.browserWindow = null;
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

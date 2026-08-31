@@ -1,7 +1,14 @@
 // Overlay-вью: заметка как есть, задачи — строки с постоянными кнопками
 // (таймер, эмодзи-статус). Все изменения пишутся в сам .md-файл.
 
-import { ItemView, MarkdownRenderer, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import {
+  ItemView,
+  MarkdownRenderer,
+  Notice,
+  TFile,
+  type ViewStateResult,
+  WorkspaceLeaf,
+} from "obsidian";
 import type TasksForFocusPlugin from "../main";
 import {
   formatDuration,
@@ -24,8 +31,8 @@ const REMOVE_GLYPH = "○";
 /** Fire-and-forget из обработчиков кликов: ошибку показываем, не глотаем. */
 function safe(promise: Promise<unknown>): void {
   promise.catch((error) => {
-    console.error("Tasks for Focus ADHD", error);
-    new Notice("Tasks for Focus: действие не удалось — см. консоль (Cmd+Opt+I).");
+    console.error("Always-on-Top Tasks", error);
+    new Notice("Always-on-Top Tasks: the action failed — see the developer console for details.");
   });
 }
 
@@ -82,13 +89,13 @@ export class FocusOverlayView extends ItemView {
     return "target";
   }
 
-  async setState(state: OverlayViewState, result: unknown): Promise<void> {
+  async setState(state: OverlayViewState, result: ViewStateResult): Promise<void> {
     const byPath = state.filePath
       ? this.plugin.app.vault.getAbstractFileByPath(state.filePath)
       : null;
     this.file = byPath instanceof TFile ? byPath : null;
     await this.render();
-    await super.setState(state, result as never);
+    await super.setState(state, result);
   }
 
   getState(): OverlayViewState {
@@ -131,6 +138,11 @@ export class FocusOverlayView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    // Отложенный ререндер не должен сработать по уже закрытой вьюхе.
+    if (this.renderTimeout !== null) {
+      window.clearTimeout(this.renderTimeout);
+      this.renderTimeout = null;
+    }
     this.containerEl.win?.document.body.classList.remove("tfa-popout-body");
   }
 
@@ -162,7 +174,10 @@ export class FocusOverlayView extends ItemView {
       this.contentEl.empty();
       this.runningTimeEl = null;
       this.pinnedTimeEl = null;
-      this.contentEl.createDiv({ cls: "tfa-empty", text: "Заметка не выбрана или удалена." });
+      this.contentEl.createDiv({
+        cls: "tfa-empty",
+        text: "No note selected, or the note was deleted.",
+      });
       return;
     }
 
@@ -228,7 +243,7 @@ export class FocusOverlayView extends ItemView {
       breakButton = footer.createEl("button", {
         cls: `tfa-btn tfa-break${onBreak ? " tfa-break-on" : ""}`,
         text: "☕",
-        attr: { "aria-label": onBreak ? "Закончить перерыв" : "Перерыв" },
+        attr: { "aria-label": onBreak ? "End break" : "Start break" },
       });
       breakButton.addEventListener("click", () => safe(this.onToggleBreak()));
     }
@@ -271,7 +286,7 @@ export class FocusOverlayView extends ItemView {
     const stopButton = pinned.createEl("button", {
       cls: "tfa-btn tfa-timer tfa-timer-on",
       text: "⏹",
-      attr: { "aria-label": "Остановить таймер" },
+      attr: { "aria-label": "Stop timer" },
     });
     stopButton.addEventListener("click", () =>
       safe(this.onToggleTimer(task.lineNo, task.rawLine)),
@@ -297,7 +312,7 @@ export class FocusOverlayView extends ItemView {
     addRow.empty();
     const input = addRow.createEl("input", {
       cls: "tfa-input",
-      attr: { placeholder: "Новая задача… (Enter — ещё одна, Esc — закрыть)" },
+      attr: { placeholder: "New task… (Enter adds another, Esc closes)" },
     });
     input.value = this.addDraft ?? "";
     input.addEventListener("input", () => {
@@ -332,7 +347,7 @@ export class FocusOverlayView extends ItemView {
   }
 
   private renderAddRowButton(addRow: HTMLElement): void {
-    const button = addRow.createEl("button", { cls: "tfa-add-btn", text: "+ задача" });
+    const button = addRow.createEl("button", { cls: "tfa-add-btn", text: "+ task" });
     button.addEventListener("click", () => {
       this.addDraft = "";
       this.openAddInput(addRow);
@@ -363,7 +378,10 @@ export class FocusOverlayView extends ItemView {
     const row = container.createDiv({
       cls: `tfa-task${parsed.checked ? " tfa-done" : ""}${isRunning ? " tfa-running" : ""}`,
     });
-    row.style.paddingLeft = `${parsed.indent.replace(/\t/g, "  ").length * 8}px`;
+    // Глубина вложенности — только через CSS-переменную: инлайн-стили из JS
+    // мешают темам и режутся на ревью Obsidian.
+    const depth = parsed.indent.replace(/\t/g, "  ").length;
+    row.style.setProperty("--tfa-indent", `${depth * 8}px`);
 
     const checkbox = row.createEl("input", { type: "checkbox", cls: "tfa-check" });
     checkbox.checked = parsed.checked;
@@ -376,7 +394,7 @@ export class FocusOverlayView extends ItemView {
       const emojiButton = row.createEl("button", {
         cls: `tfa-btn tfa-emoji${parsed.statusEmoji ? "" : " tfa-emoji-empty"}`,
         text: parsed.statusEmoji ?? "○",
-        attr: { "aria-label": "Статус задачи" },
+        attr: { "aria-label": "Task status" },
       });
       emojiButton.addEventListener("click", () => this.toggleEmojiStrip(row, lineNo, rawLine));
     }
@@ -400,7 +418,7 @@ export class FocusOverlayView extends ItemView {
     const timerButton = row.createEl("button", {
       cls: `tfa-btn tfa-timer${isRunning ? " tfa-timer-on" : ""}`,
       text: isRunning ? "⏹" : "▶",
-      attr: { "aria-label": isRunning ? "Остановить таймер" : "Запустить таймер" },
+      attr: { "aria-label": isRunning ? "Stop timer" : "Start timer" },
     });
     timerButton.addEventListener("click", () => safe(this.onToggleTimer(lineNo, rawLine)));
 
@@ -464,7 +482,7 @@ export class FocusOverlayView extends ItemView {
       const button = strip.createEl("button", {
         cls: `tfa-btn tfa-strip-btn${isRemove ? " tfa-strip-remove" : ""}`,
         text: emoji,
-        attr: { "aria-label": isRemove ? "Без статуса" : emoji },
+        attr: { "aria-label": isRemove ? "No status" : emoji },
       });
       button.addEventListener("click", () => {
         safe(
@@ -557,7 +575,7 @@ export class FocusOverlayView extends ItemView {
       return lines.map((line, i) => (i === index ? newLineText : line)).join("\n");
     });
     if (!applied) {
-      new Notice("Tasks for Focus: строка изменилась, действие не применено. Попробуй ещё раз.");
+      new Notice("Always-on-Top Tasks: the line changed, so nothing was applied. Try again.");
       this.scheduleRender();
       return;
     }
@@ -606,7 +624,7 @@ export class FocusOverlayView extends ItemView {
       if (this.lastReminderStartedAt !== timer.startedAt) {
         this.lastReminderStartedAt = timer.startedAt;
         new Notice(
-          `Tasks for Focus: без перерыва уже ${breakReminderMinutes} мин — может, пауза? ☕`,
+          `Always-on-Top Tasks: ${breakReminderMinutes} min without a break — time for a pause? ☕`,
           8000,
         );
       }

@@ -30,7 +30,9 @@ export default class TasksForFocusPlugin extends Plugin {
   }
 
   onunload(): void {
-    this.overlay.close();
+    // Гайдлайн Obsidian: плагин не закрывает leaf'ы в onunload. Снимаем только
+    // always-on-top, окно превращается в обычный popout.
+    this.overlay.release();
   }
 
   private async toggleOverlay(): Promise<void> {
@@ -40,8 +42,10 @@ export default class TasksForFocusPlugin extends Plugin {
     }
     const file = this.resolveFocusNote();
     if (!file) {
-      new Notice("Tasks for Focus: заметка не выбрана. Открой нужную заметку и запусти " +
-        "команду «Open current note as focus overlay».");
+      new Notice(
+        "Always-on-Top Tasks: no note selected. Open the note you want and run the " +
+          "\"Open current note as focus overlay\" command.",
+      );
       return;
     }
     await this.overlay.toggle(file);
@@ -50,7 +54,7 @@ export default class TasksForFocusPlugin extends Plugin {
   private async openCurrentNote(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file) {
-      new Notice("Tasks for Focus: нет активной заметки.");
+      new Notice("Always-on-Top Tasks: no active note.");
       return;
     }
     this.settings = { ...this.settings, focusNotePath: file.path };

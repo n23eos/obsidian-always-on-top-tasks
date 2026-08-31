@@ -1,6 +1,6 @@
 // Вкладка настроек. Изменения применяются к открытому overlay сразу.
 
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type TasksForFocusPlugin from "./main";
 import type { OverlayEdge } from "./electron";
 import { FocusOverlayView, FOCUS_OVERLAY_VIEW_TYPE } from "./overlay/FocusOverlayView";
@@ -15,22 +15,27 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("Заметка для overlay")
-      .setDesc("Путь к .md-файлу. Проще: открой заметку и выполни команду «Open current note as focus overlay» — путь сохранится сам.")
+      .setName("Note to pin")
+      .setDesc(
+        "Path to the markdown file shown in the overlay. Easier: open the note and run the " +
+          "\"Open current note as focus overlay\" command — the path is saved for you.",
+      )
       .addText((text) =>
         text
           .setPlaceholder("Focus/today.md")
           .setValue(this.plugin.settings.focusNotePath)
           .onChange(async (value) => {
-            await this.applyPatch({ focusNotePath: value.trim() });
+            const trimmed = value.trim();
+            await this.applyPatch({ focusNotePath: trimmed ? normalizePath(trimmed) : "" });
           }),
       );
 
     new Setting(containerEl)
-      .setName("Край экрана")
+      .setName("Screen edge")
+      .setDesc("Which side of the screen the overlay is docked to.")
       .addDropdown((dropdown) =>
         dropdown
-          .addOptions({ right: "Правый", left: "Левый" })
+          .addOptions({ right: "Right", left: "Left" })
           .setValue(this.plugin.settings.edge)
           .onChange(async (value) => {
             await this.applyPatch({ edge: value as OverlayEdge });
@@ -38,7 +43,8 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Ширина окна")
+      .setName("Overlay width")
+      .setDesc("Width of the overlay window in pixels.")
       .addSlider((slider) =>
         slider
           .setLimits(240, 560, 10)
@@ -50,7 +56,8 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Непрозрачность")
+      .setName("Opacity")
+      .setDesc("Lower values let the window behind the overlay show through.")
       .addSlider((slider) =>
         slider
           .setLimits(0.5, 1, 0.05)
@@ -62,8 +69,12 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Перерывы")
-      .setDesc("Кнопка ☕ в футере (стопит таймер задачи, считает отдых) и мягкое напоминание при долгой сессии. Суммарное время перерывов копится в заметке строкой «☕ Ч:ММ:СС».")
+      .setName("Breaks")
+      .setDesc(
+        "Adds a coffee button to the footer: it stops the running task timer and starts a " +
+          "break stopwatch. Total break time accumulates in the note as a \"☕ H:MM:SS\" line. " +
+          "A long work session also gets a gentle reminder.",
+      )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.breaksEnabled).onChange(async (value) => {
           await this.applyPatch({ breaksEnabled: value });
@@ -71,7 +82,8 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Напоминать о перерыве через (минут)")
+      .setName("Remind about a break after (minutes)")
+      .setDesc("Length of continuous work after which the reminder appears.")
       .addSlider((slider) =>
         slider
           .setLimits(20, 90, 5)
@@ -83,8 +95,8 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Кнопка статуса-эмодзи")
-      .setDesc("Выключи, если занимает место: статус останется видимым текстом в строке.")
+      .setName("Emoji status button")
+      .setDesc("Turn off to save space: the status stays visible as text in the task line.")
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.showEmojiButton).onChange(async (value) => {
           await this.applyPatch({ showEmojiButton: value });
@@ -92,8 +104,8 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Сквозные клики (экспериментально)")
-      .setDesc("Окно игнорирует мышь целиком — кнопки перестанут работать. Выключить можно только здесь.")
+      .setName("Click-through (experimental)")
+      .setDesc("The window ignores the mouse entirely, so its buttons stop working. Only this setting can turn it back off.")
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.clickThrough).onChange(async (value) => {
           await this.applyPatch({ clickThrough: value });
@@ -101,8 +113,8 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Не забирать фокус (экспериментально)")
-      .setDesc("setFocusable(false): на macOS ведёт себя нестабильно.")
+      .setName("Never take focus (experimental)")
+      .setDesc("Uses setFocusable(false), which behaves unreliably on macOS.")
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.nonFocusable).onChange(async (value) => {
           await this.applyPatch({ nonFocusable: value });
