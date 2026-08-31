@@ -48,7 +48,6 @@ gh attestation verify main.js --repo n23eos/obsidian-always-on-top-tasks
 | A license file | `LICENSE`, MIT |
 | A README that explains the plugin | root `README.md` |
 | Typed lint clean | `npm run lint`, enforced in CI before the release is cut |
-| Declarative settings, searchable in Obsidian | `getSettingDefinitions()` in `src/SettingsTab.ts` |
 | No `leaf.detach()` in `onunload` | `onunload` only releases always-on-top |
 | No inline styles set from JavaScript | indentation goes through the `--tfa-indent` CSS variable |
 | English UI in sentence case | all settings, notices and button labels |
@@ -56,10 +55,15 @@ gh attestation verify main.js --repo n23eos/obsidian-always-on-top-tasks
 
 ## Version floor
 
-`minAppVersion` is `1.13.0` because the settings tab uses the declarative
-settings API introduced in that release. Users on older Obsidian keep getting
-0.4.0 — that is exactly what `versions.json` is for, so never rewrite its
-older entries.
+`minAppVersion` is `1.4.0`. The review recommends the declarative settings API
+(`getSettingDefinitions`), which would make the settings searchable, but it only
+exists from Obsidian 1.13.0. Release 0.5.0 tried it and was rolled back in 0.6.0:
+1.13 was not yet offered as a download to ordinary users, so the floor cut off
+people who could not update even if they wanted to. Revisit once 1.13 is widely
+available — the implementation is in the history of `src/SettingsTab.ts`.
+
+Never rewrite older `versions.json` entries: that is how Obsidian decides which
+plugin version an older app may install.
 
 ## The question a reviewer will ask
 

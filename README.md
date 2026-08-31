@@ -83,7 +83,7 @@ survives an Obsidian restart.
 
 ## Installation
 
-Requires Obsidian 1.13 or later, desktop only.
+Desktop only.
 
 **Settings → Community plugins → Browse**, search for "Always-on-Top Tasks",
 install and enable.
@@ -131,8 +131,6 @@ switches — click-through and never-take-focus — are off by default.
 
 - **Desktop only.** The overlay needs Electron window APIs, which mobile
   Obsidian does not have.
-- **Obsidian 1.13 or later**, because the settings use the declarative settings
-  API. Older versions can still install release 0.4.0.
 - **Clicking the overlay activates Obsidian.** Electron has no equivalent of a
   macOS non-activating panel. Focus is released right after each button click,
   but that one focus switch is unavoidable.

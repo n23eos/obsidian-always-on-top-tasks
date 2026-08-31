@@ -1,8 +1,8 @@
 {
   "id": "tasks-for-focus-adhd",
   "name": "Always-on-Top Tasks",
-  "version": "0.5.0",
-  "minAppVersion": "1.13.0",
+  "version": "0.6.0",
+  "minAppVersion": "1.4.0",
   "description": "Pin a note as an always-on-top focus overlay with per-task stopwatch and emoji status.",
   "author": "n23eos",
   "isDesktopOnly": true,
