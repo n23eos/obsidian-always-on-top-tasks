@@ -1,110 +1,29 @@
-# Always-on-Top Tasks: ADHD Focus Timer
+# Always-on-Top Tasks
 
-An Obsidian plugin that pins a note **on top of every window** at the edge of
-your screen — an attention anchor against ADHD context-switching. Each task
-line gets a per-task **stopwatch** and an **emoji status**, all stored right in
-the markdown.
-
-## Why
-
-With ADHD, the task you are working on evaporates the moment another window
-covers it. This plugin keeps one chosen note — your "now" list — permanently
-visible: compact, semi-transparent, docked to the screen edge, above
-fullscreen apps too.
-
-## Features
-
-- **Always-on-top overlay** — a popout window pinned above all apps
-  (including fullscreen), docked left or right, adjustable width and opacity
-- **Per-task stopwatch** — click ▶, work, click ⏹: time is appended to the
-  task line as `⏱️ H:MM:SS`. Sessions accumulate to the second
-- **One timer at a time** — starting a new timer stops the previous one;
-  that's the whole point of focus
-- **Emoji status** — one click opens an inline palette:
-  ⬜ 🔄 ⏸️ 🔜 ⛔ ✅ ❗ 🔴 🟠 🟡 🟢 🔵 🟣
-- **Checkbox integration** — checking a task stops its running timer
-- **Gentle breaks (optional)** — a ☕ button starts a break stopwatch (and
-  commits the running task timer); total break time accumulates in the note
-  as a `☕ H:MM:SS` line. After N minutes of continuous work you get a soft
-  reminder — no forced pomodoro stops. Can be disabled in settings
-- **Honest data** — everything lives in the note itself:
-
-```
-- [ ] 🔵 Fix auth bug ⏱️ 0:01:23
-- [x] ✅ Reply on Slack ⏱️ 0:00:14
-```
-
-  No hidden databases. The note stays a plain markdown file, fully readable
-  in vanilla Obsidian or any editor.
-
-- **Never lies about time** — a running timer survives Obsidian restarts;
-  a session longer than 2 hours is written with a "looks like you forgot the
-  timer" warning; if the task line was renamed or duplicated while the timer
-  ran, you get a notice with the session duration instead of a silent
-  wrong-line write.
-
-## Commands
-
-| Command | Action |
-|---|---|
-| **Open current note as focus overlay** | Pin the active note (path is remembered) |
-| **Toggle focus overlay** | Show/hide the overlay — bind it to a hotkey |
-
-## Installation
-
-Not in the Community Plugins catalog yet — install manually:
+Source of the Obsidian plugin. The full documentation — what it solves,
+screenshots, installation, data format and platform limitations — lives in the
+[repository README](../README.md), so there is only one text to keep correct.
 
 ```bash
-git clone https://github.com/n23eos/obsidian-always-on-top-tasks
-cd obsidian-always-on-top-tasks/obsidian-plugin
 npm install
-npm run build
+npm run dev            # watch build
+npm test               # vitest — unit tests for the pure core
+npm run build          # production main.js
+npm run install-local  # symlink into the vault from VAULT_PATH in .env
+npm run bump 0.4.1     # sync the version across both manifests and versions.json
 ```
 
-Then copy `manifest.json`, `main.js`, `styles.css` into
-`<your vault>/.obsidian/plugins/tasks-for-focus-adhd/` and enable the plugin
-in **Settings → Community plugins**.
-
-For development, put `VAULT_PATH=/path/to/vault` into `.env` and run
-`npm run install-local` — it symlinks the plugin folder into your vault.
-
-## Settings
-
-- Note to pin, screen edge (left/right), overlay width, opacity
-- Emoji status button can be hidden (status stays visible as text)
-- Experimental: click-through mode, non-focusable window
-
-## Platform limitations
-
-- **Desktop only** — the overlay needs Electron APIs, unavailable on mobile.
-- **Clicking the overlay activates Obsidian** — Electron has no equivalent of
-  macOS non-activating panels. Focus is released right after each button
-  click, but one focus switch is unavoidable.
-- Linux/Wayland: always-on-top depends on your window manager.
-- Uses Electron APIs that are not part of the public Obsidian plugin API;
-  if they break in a future Obsidian version, the plugin degrades gracefully
-  to a regular (non-pinned) window.
-
-## How it works
-
 ```
-src/core/           pure logic, no Obsidian imports (vitest-covered)
-  taskLine.ts       task line parser/serializer (emoji, elapsed time)
-  timer.ts          timer sessions, line addressing (lineNo + exact text)
-src/electron.ts     BrowserWindow access: always-on-top, geometry (try/catch)
-src/TimerService.ts the single running timer, atomic writes via vault.process
-src/overlay/        popout window controller + the overlay view
+src/core/       pure logic, no Obsidian imports (fully unit-tested)
+src/electron.ts BrowserWindow access: always-on-top, geometry (all guarded)
+src/TimerService.ts  the single running timer, atomic writes via vault.process
+src/overlay/    popout window controller and the overlay view
 ```
 
-The `@electron/remote` runtime resolver is adapted from
-[obsidian-synaptic-hatch](https://github.com/especialkim/obsidian-synaptic-hatch) (MIT).
-
-## Development
-
-```bash
-npm run dev    # watch build
-npm test       # vitest (unit tests for the pure core)
-```
+`manifest.json` here must stay byte-identical to the one in the repository root:
+the community catalog reads the root copy, Obsidian installs this one from the
+release. `npm run bump` keeps the versions in sync and CI fails the release if
+the two files differ.
 
 ## License
 

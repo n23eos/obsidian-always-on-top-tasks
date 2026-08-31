@@ -11,3 +11,6 @@ obsidian-plugin/.env
 # OS
 .DS_Store
 obsidian-plugin/data.json
+
+# Screenshot render workspace
+docs/screenshots/.tmp/
