@@ -14,3 +14,6 @@ obsidian-plugin/data.json
 
 # Screenshot render workspace
 docs/screenshots/.tmp/
+
+# Test vault built from release assets
+.test-vault/
