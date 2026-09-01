@@ -1,6 +1,6 @@
 {
   "name": "tasks-for-focus-adhd",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Obsidian plugin: pin a note as an always-on-top focus overlay with per-task stopwatch and emoji status",
   "main": "main.js",
   "type": "module",
