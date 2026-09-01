@@ -9,6 +9,7 @@ import {
   withChecked,
   withText,
   STATUS_EMOJIS,
+  parseStatusPalette,
 } from "../src/core/taskLine";
 
 describe("parseTaskLine", () => {
@@ -208,5 +209,35 @@ describe("withText", () => {
 
   test("returns non-task lines unchanged", () => {
     expect(withText("plain", "New")).toBe("plain");
+  });
+});
+
+describe("custom status palette", () => {
+  const palette = ["🔥", "🧊"];
+
+  test("parseTaskLine recognises an emoji from a custom palette", () => {
+    const parsed = parseTaskLine("- [ ] 🔥 Hot task ⏱️ 0:01:00", palette);
+    expect(parsed?.statusEmoji).toBe("🔥");
+    expect(parsed?.text).toBe("Hot task");
+    expect(parsed?.elapsedSeconds).toBe(60);
+  });
+
+  test("a default emoji missing from the custom palette stays part of the text", () => {
+    const parsed = parseTaskLine("- [ ] 🔵 Blue task", palette);
+    expect(parsed?.statusEmoji).toBeNull();
+    expect(parsed?.text).toBe("🔵 Blue task");
+  });
+
+  test("withStatusEmoji replaces a custom emoji with another one", () => {
+    expect(withStatusEmoji("- [ ] 🔥 Task", "🧊", palette)).toBe("- [ ] 🧊 Task");
+  });
+
+  test("parseStatusPalette falls back to the default list when empty", () => {
+    expect(parseStatusPalette("")).toEqual(STATUS_EMOJIS);
+    expect(parseStatusPalette("   \n ")).toEqual(STATUS_EMOJIS);
+  });
+
+  test("parseStatusPalette splits on whitespace and drops duplicates", () => {
+    expect(parseStatusPalette("🔥  🧊\n🔥")).toEqual(["🔥", "🧊"]);
   });
 });

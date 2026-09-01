@@ -4,14 +4,15 @@
 import {
   ItemView,
   MarkdownRenderer,
-  Notice,
   TFile,
+  setIcon,
   type ViewStateResult,
   WorkspaceLeaf,
 } from "obsidian";
 import type TasksForFocusPlugin from "../main";
 import {
   formatDuration,
+  parseStatusPalette,
   parseTaskLine,
   stripFrontmatter,
   withChecked,
@@ -21,6 +22,7 @@ import {
   type ParsedTaskLine,
 } from "../core/taskLine";
 import { locateLine } from "../core/timer";
+import { notify } from "../notify";
 
 export const FOCUS_OVERLAY_VIEW_TYPE = "tfa-focus-overlay";
 
@@ -32,7 +34,7 @@ const REMOVE_GLYPH = "○";
 function safe(promise: Promise<unknown>): void {
   promise.catch((error) => {
     console.error("Always-on-Top Tasks", error);
-    new Notice("Always-on-Top Tasks: the action failed — see the developer console for details.");
+    notify("the action failed — see the developer console for details.");
   });
 }
 
@@ -45,6 +47,16 @@ interface RunningRef {
   timeEl: HTMLElement | null;
   baseSeconds: number;
   task: { lineNo: number; rawLine: string; text: string } | null;
+}
+
+/** Кнопка-иконка (lucide) для шапки overlay. */
+function iconButton(parent: HTMLElement, icon: string, label: string): HTMLElement {
+  const button = parent.createEl("button", {
+    cls: "tfa-btn tfa-icon-btn",
+    attr: { "aria-label": label },
+  });
+  setIcon(button, icon);
+  return button;
 }
 
 export class FocusOverlayView extends ItemView {
@@ -72,6 +84,8 @@ export class FocusOverlayView extends ItemView {
   private addDraft: string | null = null;
   /** Строка в режиме инлайн-редактирования (ререндер откладывается). */
   private editingLineNo: number | null = null;
+  /** Палитра статусов из настроек — фиксируется на время рендера. */
+  private palette: readonly string[] = STATUS_EMOJIS;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: TasksForFocusPlugin) {
     super(leaf);
@@ -103,11 +117,8 @@ export class FocusOverlayView extends ItemView {
   }
 
   onOpen(): Promise<void> {
+    // Хром popout-окна (табы, view-header) прячет styles.css по этому классу.
     this.contentEl.addClass("tfa-overlay");
-    // Хром прячем только в popout-окне — не в главном (вдруг вью перетащили).
-    if (this.containerEl.win !== window) {
-      this.containerEl.win.document.body.classList.add("tfa-popout-body");
-    }
 
     this.registerEvent(
       this.plugin.app.vault.on("modify", (file) => {
@@ -145,7 +156,6 @@ export class FocusOverlayView extends ItemView {
       window.clearTimeout(this.renderTimeout);
       this.renderTimeout = null;
     }
-    this.containerEl.win?.document.body.classList.remove("tfa-popout-body");
     return Promise.resolve();
   }
 
@@ -187,6 +197,11 @@ export class FocusOverlayView extends ItemView {
     const content = await this.plugin.app.vault.cachedRead(this.file);
     if (version !== this.renderVersion) return;
 
+    const { statusEmojis, fontSize, hideCompleted, tasksOnly } = this.plugin.settings;
+    this.palette = parseStatusPalette(statusEmojis);
+    // Размер шрифта — CSS-переменной, чтобы темы и сниппеты могли её перебить.
+    this.contentEl.style.setProperty("--tfa-font-size", `${fontSize}px`);
+
     const stripped = stripFrontmatter(content);
     // Абсолютная нумерация строк файла — frontmatter только скрыт, не удалён.
     const offset = content.split("\n").length - stripped.split("\n").length;
@@ -201,6 +216,7 @@ export class FocusOverlayView extends ItemView {
     let totalSeconds = 0;
     let taskCount = 0;
     let doneCount = 0;
+    let visibleCount = 0;
 
     let mdBuffer: string[] = [];
     const flushMarkdown = async () => {
@@ -212,23 +228,34 @@ export class FocusOverlayView extends ItemView {
     };
 
     for (let i = 0; i < lines.length; i++) {
-      const parsed = parseTaskLine(lines[i]);
+      const parsed = parseTaskLine(lines[i], this.palette);
       if (!parsed) {
-        mdBuffer.push(lines[i]);
+        if (!tasksOnly) mdBuffer.push(lines[i]);
         continue;
       }
       await flushMarkdown();
       totalSeconds += parsed.elapsedSeconds ?? 0;
       taskCount += 1;
       if (parsed.checked) doneCount += 1;
+      if (parsed.checked && hideCompleted) continue; // посчитали, но не показываем
+      visibleCount += 1;
       this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef);
     }
     await flushMarkdown();
 
     if (version !== this.renderVersion) return; // пришёл более свежий рендер
 
-    // Шапка строится последней (нужен runningRef), но встаёт первой в DOM.
-    const pinnedTimeEl = this.renderPinnedHeader(built, runningRef);
+    if (taskCount === 0) {
+      built.createDiv({ cls: "tfa-empty", text: "No tasks yet. Add one with the button below." });
+    } else if (visibleCount === 0) {
+      built.createDiv({ cls: "tfa-empty", text: "All tasks are done." });
+    }
+
+    // Верхний sticky-блок строится последним (нужен runningRef), но встаёт первым в DOM.
+    const top = createDiv({ cls: "tfa-top" });
+    built.insertBefore(top, built.firstChild);
+    this.renderHeader(top, doneCount, taskCount);
+    const pinnedTimeEl = this.renderPinnedHeader(top, runningRef);
 
     const footer = built.createDiv({ cls: "tfa-add" });
     this.renderAddRowButton(footer);
@@ -268,17 +295,48 @@ export class FocusOverlayView extends ItemView {
     }
   }
 
+  /** Шапка: имя заметки, скрыть сделанные, пин/анпин, закрыть; под ней прогресс. */
+  private renderHeader(top: HTMLElement, doneCount: number, taskCount: number): void {
+    const header = top.createDiv({ cls: "tfa-header" });
+    header.createSpan({ cls: "tfa-header-title", text: this.getDisplayText() });
+
+    const { hideCompleted } = this.plugin.settings;
+    const eye = iconButton(
+      header,
+      hideCompleted ? "eye-off" : "eye",
+      hideCompleted ? "Show completed tasks" : "Hide completed tasks",
+    );
+    eye.addEventListener("click", () =>
+      safe(this.plugin.updateSettings({ hideCompleted: !hideCompleted })),
+    );
+
+    const isPinned = this.plugin.overlay.isPinned;
+    const pin = iconButton(header, isPinned ? "pin" : "pin-off", isPinned ? "Unpin from top" : "Pin on top");
+    pin.addEventListener("click", () => {
+      this.plugin.overlay.togglePin();
+      this.scheduleRender();
+    });
+
+    const close = iconButton(header, "x", "Close overlay");
+    close.addEventListener("click", () => this.plugin.overlay.close());
+
+    if (taskCount > 0) {
+      const progress = top.createDiv({ cls: "tfa-progress" });
+      progress.style.setProperty("--tfa-progress", `${Math.round((doneCount / taskCount) * 100)}%`);
+      progress.createDiv({ cls: "tfa-progress-fill" });
+    }
+  }
+
   /**
-   * Закреплённая сверху строка с текущей задачей. Есть только пока в этой
+   * Закреплённая строка с текущей задачей. Есть только пока в этой
    * заметке бежит таймер: стоп → ререндер → шапки нет.
    * Возвращает элемент времени (его тикаем) или null, если шапки нет.
    */
-  private renderPinnedHeader(built: HTMLElement, runningRef: RunningRef): HTMLElement | null {
+  private renderPinnedHeader(top: HTMLElement, runningRef: RunningRef): HTMLElement | null {
     const task = runningRef.task;
     if (!task) return null;
 
-    const pinned = createDiv({ cls: "tfa-pinned" });
-    built.insertBefore(pinned, built.firstChild);
+    const pinned = top.createDiv({ cls: "tfa-pinned" });
 
     pinned.createSpan({ cls: "tfa-pinned-text", text: task.text });
     const timeEl = pinned.createSpan({
@@ -315,7 +373,7 @@ export class FocusOverlayView extends ItemView {
     addRow.empty();
     const input = addRow.createEl("input", {
       cls: "tfa-input",
-      attr: { placeholder: "New task… (Enter adds another, Esc closes)" },
+      attr: { placeholder: "New task… (enter adds another, esc closes)" },
     });
     input.value = this.addDraft ?? "";
     input.addEventListener("input", () => {
@@ -453,7 +511,7 @@ export class FocusOverlayView extends ItemView {
     }
 
     // Только чекбокс: ✅ не ставим — иначе двойная галочка в строке.
-    const transform = (line: string) => withChecked(line, !parsed.checked);
+    const transform = (line: string) => withChecked(line, !parsed.checked, this.palette);
 
     await this.updateLine(targetLineNo, targetText, transform);
     this.plugin.overlay.blur();
@@ -480,7 +538,7 @@ export class FocusOverlayView extends ItemView {
     const strip = createDiv({ cls: "tfa-strip" });
     row.insertAdjacentElement("afterend", strip);
 
-    for (const emoji of [REMOVE_GLYPH, ...STATUS_EMOJIS]) {
+    for (const emoji of [REMOVE_GLYPH, ...this.palette]) {
       const isRemove = emoji === REMOVE_GLYPH;
       const button = strip.createEl("button", {
         cls: `tfa-btn tfa-strip-btn${isRemove ? " tfa-strip-remove" : ""}`,
@@ -492,7 +550,7 @@ export class FocusOverlayView extends ItemView {
           (async () => {
             this.closeEmojiStrip();
             await this.updateLine(lineNo, rawLine, (line) =>
-              withStatusEmoji(line, isRemove ? null : emoji),
+              withStatusEmoji(line, isRemove ? null : emoji, this.palette),
             );
             this.plugin.overlay.blur();
           })(),
@@ -544,7 +602,7 @@ export class FocusOverlayView extends ItemView {
         return;
       }
       finish();
-      safe(this.updateLine(lineNo, rawLine, (line) => withText(line, newText)));
+      safe(this.updateLine(lineNo, rawLine, (line) => withText(line, newText, this.palette)));
     };
 
     input.addEventListener("keydown", (event) => {
@@ -578,7 +636,7 @@ export class FocusOverlayView extends ItemView {
       return lines.map((line, i) => (i === index ? newLineText : line)).join("\n");
     });
     if (!applied) {
-      new Notice("Always-on-Top Tasks: the line changed, so nothing was applied. Try again.");
+      notify("the line changed, so nothing was applied. Try again.");
       this.scheduleRender();
       return;
     }
@@ -592,11 +650,9 @@ export class FocusOverlayView extends ItemView {
       timer.lineText === expectedText &&
       newLineText !== expectedText
     ) {
-      this.plugin.settings = {
-        ...this.plugin.settings,
+      await this.plugin.patchSettings({
         runningTimer: { ...timer, lineNo: newIndex, lineText: newLineText },
-      };
-      await this.plugin.saveSettings();
+      });
     }
   }
 
@@ -626,10 +682,7 @@ export class FocusOverlayView extends ItemView {
       this.pinnedTimeEl?.addClass("tfa-time-overdue");
       if (this.lastReminderStartedAt !== timer.startedAt) {
         this.lastReminderStartedAt = timer.startedAt;
-        new Notice(
-          `Always-on-Top Tasks: ${breakReminderMinutes} min without a break — time for a pause? ☕`,
-          8000,
-        );
+        notify(`${breakReminderMinutes} min without a break — time for a pause? ☕`, 8000);
       }
     }
   }

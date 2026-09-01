@@ -110,13 +110,34 @@ Copy `manifest.json`, `main.js` and `styles.css` into
 | Command | What it does |
 |---|---|
 | **Open current note as focus overlay** | Pins the active note; the path is remembered for next time |
-| **Toggle focus overlay** | Shows or hides the overlay — worth binding to a hotkey |
+| **Toggle focus overlay** | Shows or hides the overlay — worth binding to a hotkey. The target icon in the ribbon does the same |
+| **Toggle always on top** | Lets the overlay drop behind other windows for a moment without closing it; the pin button in the overlay header does the same |
+| **Stop the running timer** | Commits the session from anywhere — the status bar item in the main window does the same on click |
+| **Toggle completed tasks in the overlay** | Hides or shows checked tasks; the eye button in the overlay header does the same |
+
+None of the commands ships with a default hotkey; bind your own in
+**Settings → Hotkeys**.
 
 ## Settings
 
-Note to pin · screen edge (left or right) · overlay width · opacity · breaks and
-the reminder threshold · whether the emoji button is shown. Two experimental
-switches — click-through and never-take-focus — are off by default.
+Grouped into four sections. On Obsidian 1.13 and later every setting is also
+found by the settings search; older versions get the same tab drawn the classic
+way, so the plugin keeps working from Obsidian 1.4.
+
+**Overlay window** — the note to pin (with a file picker), position (docked to
+the right or left edge, or *free*: the window stays wherever you drag it, and
+the place is remembered), width of the docked overlay, opacity.
+
+**Timer and breaks** — the running timer in the main window's status bar,
+breaks and the reminder threshold.
+
+**Appearance** — font size, hide completed tasks, tasks only (skip the prose
+between tasks), the emoji status button, your own status emoji palette, the
+ribbon icon.
+
+**Advanced** — two experimental switches, click-through and never-take-focus,
+off by default, and a reset to defaults that keeps the pinned note and a
+running timer.
 
 ## Behaviour worth knowing
 
@@ -129,6 +150,9 @@ switches — click-through and never-take-focus — are off by default.
   "looks like the timer was left running" warning.
 - **Editing is one click.** Click the task text to rename it in place; the
   footer has a field for adding new tasks.
+- **The header is a handle.** Drag the overlay by its header; in the *free*
+  position mode it stays where you leave it, and a saved position on a monitor
+  that is no longer connected falls back to the right edge.
 
 ## Platform limitations
 
@@ -149,16 +173,21 @@ switches — click-through and never-take-focus — are off by default.
 npm install
 npm run dev     # watch build
 npm test        # vitest — unit tests for the pure core
-npm run lint    # the same typed rules the catalog review runs
+npm run check   # tsc --noEmit
+npm run lint    # typescript-eslint + eslint-plugin-obsidianmd, the rules ObsidianReviewBot runs
 ```
 
 ```
 src/core/       pure logic, no Obsidian imports (fully unit-tested)
-  taskLine.ts   task line parser and serializer (emoji, elapsed time)
+  taskLine.ts   task line parser and serializer (emoji palette, elapsed time)
   timer.ts      timer sessions, line addressing (line number + exact text)
   breakLine.ts  the "☕ H:MM:SS" total-break line
+src/settings.ts settings model, migration of old data.json, reset (unit-tested)
+src/SettingDefinitions.ts  the settings described once, as Obsidian 1.13 definitions
+src/SettingsTab.ts  getSettingDefinitions() for 1.13+, a display() adapter for older versions
 src/electron.ts BrowserWindow access: always-on-top, geometry (all guarded)
 src/TimerService.ts  the single running timer, atomic writes via vault.process
+src/StatusBarTimer.ts  the running timer in the main window's status bar
 src/overlay/    popout window controller and the overlay view
 macos/          the standalone SimpleFocus app, unrelated to the plugin build
 ```
@@ -166,6 +195,15 @@ macos/          the standalone SimpleFocus app, unrelated to the plugin build
 Put `VAULT_PATH=/path/to/vault` into `.env` and run `npm run install-local`:
 it creates the plugin folder in your vault and symlinks `main.js`,
 `manifest.json` and `styles.css` into it, so `npm run dev` reloads live.
+
+With the [Obsidian CLI](https://help.obsidian.md/cli) enabled in
+**Settings → General**, a running Obsidian can be driven from the terminal:
+
+```bash
+obsidian plugin:reload id=tasks-for-focus-adhd   # pick up a fresh main.js
+obsidian dev:errors                              # what the plugin logged
+obsidian dev:screenshot path=overlay.png
+```
 
 ## Attribution
 

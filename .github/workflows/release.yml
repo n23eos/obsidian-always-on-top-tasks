@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run check
+
       # The same typed rules the community catalog review runs.
       - name: Lint
         run: npm run lint

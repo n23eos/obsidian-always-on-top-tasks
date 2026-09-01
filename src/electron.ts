@@ -85,15 +85,38 @@ export function getBrowserWindowFor(win: Window): ElectronBrowserWindow | null {
 export type OverlayEdge = "left" | "right";
 
 export interface OverlayGeometry {
-  edge: OverlayEdge;
+  /** Край экрана; null = свободный режим (окно остаётся где стоит). */
+  edge: OverlayEdge | null;
   width: number;
   opacity: number; // 0..1
   margin: number;
+  /** Сохранённое положение для свободного режима. */
+  freeBounds: ElectronRect | null;
+  /** false = окно временно снято с "поверх всех" кнопкой в шапке. */
+  pinned: boolean;
+}
+
+/** Пересекается ли прямоугольник с рабочей областью (окно не на отключённом мониторе). */
+function intersects(a: ElectronRect, b: ElectronRect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function dockedBounds(workArea: ElectronRect, geometry: OverlayGeometry, edge: OverlayEdge): ElectronRect {
+  const x =
+    edge === "right"
+      ? workArea.x + workArea.width - geometry.width - geometry.margin
+      : workArea.x + geometry.margin;
+  return {
+    x,
+    y: workArea.y + geometry.margin,
+    width: geometry.width,
+    height: workArea.height - geometry.margin * 2,
+  };
 }
 
 /**
- * Прижимает окно к краю экрана, ставит поверх всех (включая полноэкранные
- * приложения) и применяет прозрачность. true = всё применилось.
+ * Ставит окно по настройкам: к краю экрана или в сохранённое место, поверх
+ * всех (включая полноэкранные приложения) и с прозрачностью. true = всё применилось.
  */
 export function applyOverlayGeometry(
   browserWindow: ElectronBrowserWindow,
@@ -102,38 +125,65 @@ export function applyOverlayGeometry(
 ): boolean {
   try {
     const remote = getRemoteFor(hostWin);
-    const workArea = remote?.screen?.getDisplayMatching(browserWindow.getBounds()).workArea;
+    const screen = remote?.screen;
 
-    if (workArea) {
-      const x =
-        geometry.edge === "right"
-          ? workArea.x + workArea.width - geometry.width - geometry.margin
-          : workArea.x + geometry.margin;
-      browserWindow.setBounds({
-        x,
-        y: workArea.y + geometry.margin,
-        width: geometry.width,
-        height: workArea.height - geometry.margin * 2,
-      });
+    // Свободный режим без сохранённого места: окно остаётся там, где его
+    // открыл Obsidian, — это и есть «не трогать».
+    if (geometry.edge) {
+      const workArea = screen?.getDisplayMatching(browserWindow.getBounds()).workArea;
+      if (workArea) browserWindow.setBounds(dockedBounds(workArea, geometry, geometry.edge));
+    } else if (geometry.freeBounds) {
+      // Сохранённое место может быть на отключённом мониторе — тогда правый край.
+      const workArea = screen?.getDisplayMatching(geometry.freeBounds).workArea;
+      const isVisible = workArea ? intersects(geometry.freeBounds, workArea) : true;
+      if (isVisible) browserWindow.setBounds(geometry.freeBounds);
+      else if (workArea) browserWindow.setBounds(dockedBounds(workArea, geometry, "right"));
     }
 
-    // 'screen-saver' — чтобы держаться над полноэкранными приложениями (macOS)
-    browserWindow.setAlwaysOnTop(true, "screen-saver");
-    browserWindow.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true });
+    setPinned(browserWindow, geometry.pinned);
     browserWindow.setOpacity?.(geometry.opacity);
     return true;
   } catch (error) {
-    console.error("Tasks for Focus ADHD: failed to apply overlay geometry", error);
+    console.error("Always-on-Top Tasks: failed to apply overlay geometry", error);
     return false;
   }
+}
+
+/** Поверх всех окон (включая полноэкранные, уровень 'screen-saver' на macOS) или обычное окно. */
+export function setPinned(browserWindow: ElectronBrowserWindow, pinned: boolean): void {
+  try {
+    if (pinned) {
+      browserWindow.setAlwaysOnTop(true, "screen-saver");
+      browserWindow.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true });
+    } else {
+      browserWindow.setAlwaysOnTop(false);
+      browserWindow.setVisibleOnAllWorkspaces?.(false);
+    }
+  } catch {
+    // окно уже закрыто или API недоступен — плагин живёт без пина
+  }
+}
+
+/** Текущее положение окна; null, если окно закрыто или API недоступен. */
+export function readBounds(browserWindow: ElectronBrowserWindow): ElectronRect | null {
+  try {
+    if (browserWindow.isDestroyed?.()) return null;
+    return browserWindow.getBounds();
+  } catch {
+    return null;
+  }
+}
+
+export function sameRect(a: ElectronRect | null, b: ElectronRect | null): boolean {
+  if (!a || !b) return a === b;
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
 /** Снимает always-on-top (при закрытии overlay / выгрузке плагина). */
 export function releaseWindow(browserWindow: ElectronBrowserWindow): void {
   try {
     if (browserWindow.isDestroyed?.()) return;
-    browserWindow.setAlwaysOnTop(false);
-    browserWindow.setVisibleOnAllWorkspaces?.(false);
+    setPinned(browserWindow, false);
     browserWindow.setOpacity?.(1);
   } catch {
     // окно уже закрыто — нечего снимать

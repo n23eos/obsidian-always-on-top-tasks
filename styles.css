@@ -1,23 +1,32 @@
-/* Tasks for Focus ADHD.
-   Все селекторы под скоупом .tfa-overlay / .tfa-popout-body —
-   главное окно Obsidian не затрагивается. */
+/* Always-on-Top Tasks.
+   Все селекторы под скоупом .tfa-overlay / body:has(.tfa-overlay) / .tfa-statusbar —
+   остальное главное окно Obsidian не затрагивается. */
 
-/* ---- окно overlay: убрать лишний хром (только в popout с нашей вьюхой) ---- */
+/* ---- окно overlay: убрать лишний хром (только в popout с нашей вьюхой) ----
+   Класс на body ставить нельзя: Obsidian периодически переписывает классы
+   body у popout-окон, синхронизируя их с главным. Поэтому :has(). */
 
-.tfa-popout-body .workspace-tab-header-container,
-.tfa-popout-body .titlebar {
+body.is-popout-window:has(.tfa-overlay) .workspace-tab-header-container,
+body.is-popout-window:has(.tfa-overlay) .view-header,
+body.is-popout-window:has(.tfa-overlay) .titlebar {
   display: none;
 }
 
-.tfa-popout-body .workspace-tabs {
+body.is-popout-window:has(.tfa-overlay) .workspace-tabs {
   padding: 0;
+}
+
+/* macOS без рамки: светофор остаётся поверх окна — шапка отступает под него */
+body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
+  padding-left: var(--frame-left-space, 72px);
 }
 
 /* ---- содержимое ---- */
 
 .tfa-overlay {
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 0 12px 10px;
+  /* размер приходит из настроек одной переменной; сниппет темы может перебить */
+  font-size: var(--tfa-font-size, 13px);
   line-height: 1.35;
   user-select: none;
 }
@@ -43,20 +52,76 @@
   padding: 16px 4px;
 }
 
-/* ---- закреплённая шапка с текущей задачей ---- */
+/* ---- верхний блок: шапка, прогресс, текущая задача ---- */
 
-/* прибита к верху окна — видна всегда, пока бежит таймер */
-.tfa-overlay .tfa-pinned {
+/* прибит к верху окна — виден всегда, независимо от скролла */
+.tfa-overlay .tfa-top {
   position: sticky;
   top: 0;
   z-index: 1;
+  margin-bottom: 4px;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tfa-overlay .tfa-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0 4px;
+  /* за шапку окно можно таскать — так работает свободный режим */
+  -webkit-app-region: drag;
+}
+
+.tfa-overlay .tfa-header-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.92em;
+  font-weight: 600;
+  padding-left: 2px;
+}
+
+.tfa-overlay .tfa-icon-btn {
+  color: var(--text-faint);
+  -webkit-app-region: no-drag;
+}
+
+.tfa-overlay .tfa-icon-btn:hover {
+  color: var(--text-normal);
+}
+
+.tfa-overlay .tfa-icon-btn .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* тонкая полоска сделано/всего */
+.tfa-overlay .tfa-progress {
+  height: 3px;
+  margin: 0 2px 2px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.tfa-overlay .tfa-progress-fill {
+  height: 100%;
+  width: var(--tfa-progress, 0%);
+  background: var(--interactive-accent);
+  transition: width 200ms ease;
+}
+
+/* строка с текущей задачей — есть только пока бежит таймер */
+.tfa-overlay .tfa-pinned {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 2px;
-  margin-bottom: 4px;
-  background: var(--background-primary);
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 /* длинное название не должно раздувать шапку — одна строка с многоточием */
@@ -106,7 +171,7 @@
 .tfa-overlay .tfa-time {
   color: var(--color-blue, #2f81f7);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 0.92em;
   white-space: nowrap;
 }
 
@@ -208,14 +273,14 @@
 /* счётчик сделано/всего и суммарное время в футере */
 .tfa-overlay .tfa-count {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.92em;
   white-space: nowrap;
 }
 
 .tfa-overlay .tfa-total {
   color: var(--color-blue, #2f81f7);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 0.92em;
   white-space: nowrap;
   padding-right: 4px;
 }
@@ -231,7 +296,7 @@
   border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 1em;
 }
 
 .tfa-overlay .tfa-add-btn:hover {
@@ -245,7 +310,7 @@
   width: 100%;
   height: 28px;
   padding: 0 6px;
-  font-size: 13px;
+  font-size: 1em;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
@@ -277,4 +342,27 @@
 /* сессия дольше порога — время задачи янтарным, намёк на паузу */
 .tfa-overlay .tfa-time-overdue {
   color: var(--color-orange, #d29922);
+}
+
+/* ---- вкладка настроек (адаптер для Obsidian < 1.13) ---- */
+
+.tfa-slider-value {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: 8px;
+}
+
+/* ---- статус-бар главного окна ---- */
+
+.tfa-statusbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tfa-statusbar .tfa-statusbar-icon .svg-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--interactive-accent);
 }

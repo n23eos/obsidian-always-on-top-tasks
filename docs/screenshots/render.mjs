@@ -144,12 +144,32 @@ function emojiStrip() {
   return `<div class="tfa-strip">${buttons}</div>`;
 }
 
-function pinnedHeader({ text, time }) {
+const ICONS = {
+  eye: `<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`,
+  pin: `<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>`,
+  x: `<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
+};
+
+/** The sticky top block: header with note name and buttons, progress, running task. */
+function topBlock({ title = "Today", progress = 0, pinned = null } = {}) {
+  const pinnedEl = pinned
+    ? `
+      <div class="tfa-pinned">
+        <span class="tfa-pinned-text">${pinned.text}</span>
+        <span class="tfa-time">${pinned.time}</span>
+        <button class="tfa-btn tfa-timer tfa-timer-on">⏹</button>
+      </div>`
+    : "";
   return `
-    <div class="tfa-pinned">
-      <span class="tfa-pinned-text">${text}</span>
-      <span class="tfa-time">${time}</span>
-      <button class="tfa-btn tfa-timer tfa-timer-on">⏹</button>
+    <div class="tfa-top">
+      <div class="tfa-header">
+        <span class="tfa-header-title">${title}</span>
+        <button class="tfa-btn tfa-icon-btn">${ICONS.eye}</button>
+        <button class="tfa-btn tfa-icon-btn">${ICONS.pin}</button>
+        <button class="tfa-btn tfa-icon-btn">${ICONS.x}</button>
+      </div>
+      <div class="tfa-progress" style="--tfa-progress: ${progress}%"><div class="tfa-progress-fill"></div></div>
+      ${pinnedEl}
     </div>`;
 }
 
@@ -197,13 +217,13 @@ const shots = [
   {
     name: "overlay-pinned",
     width: 700,
-    height: 420,
+    height: 460,
     body: `
       <div class="stage">
         ${behindWindow}
         <div class="window">
           <div class="tfa-overlay">
-            ${pinnedHeader({ text: "Ship the payments hotfix", time: "0:41:12" })}
+            ${topBlock({ progress: 29, pinned: { text: "Ship the payments hotfix", time: "0:41:12" } })}
             ${NOTE_ROWS.join("")}
             ${footer({ count: "2/7", total: "1:34:46" })}
           </div>
@@ -213,11 +233,11 @@ const shots = [
   {
     name: "running-task",
     width: 460,
-    height: 330,
+    height: 370,
     body: `
       <div class="window">
         <div class="tfa-overlay">
-          ${pinnedHeader({ text: "Ship the payments hotfix", time: "0:41:12" })}
+          ${topBlock({ progress: 0, pinned: { text: "Ship the payments hotfix", time: "0:41:12" } })}
           ${NOTE_ROWS.slice(0, 4).join("")}
           ${footer({ count: "0/4", total: "1:29:19" })}
         </div>
@@ -226,10 +246,11 @@ const shots = [
   {
     name: "emoji-status",
     width: 460,
-    height: 300,
+    height: 340,
     body: `
       <div class="window">
         <div class="tfa-overlay">
+          ${topBlock({ progress: 0 })}
           ${taskRow({ text: "Ship the payments hotfix", emoji: "🔵", time: "0:41:12", running: true })}
           ${emojiStrip()}
           ${taskRow({ text: "Review Anna's pull request", emoji: "🔜", time: "0:06:55" })}
@@ -240,10 +261,11 @@ const shots = [
   {
     name: "breaks",
     width: 460,
-    height: 230,
+    height: 270,
     body: `
       <div class="window">
         <div class="tfa-overlay">
+          ${topBlock({ progress: 0 })}
           ${taskRow({ text: "Ship the payments hotfix", emoji: "🔵", time: "0:41:12" })}
           ${taskRow({ text: "Review Anna's pull request", emoji: "🔜", time: "0:06:55" })}
           ${footer({ count: "0/2", total: "0:48:07", breakTime: "0:04:31" })}

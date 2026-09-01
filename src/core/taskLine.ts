@@ -31,9 +31,21 @@ const TASK_RE = /^(\s*)([-*]) \[( |x|X)\] (.*)$/;
 // Время строго в хвосте строки: " ⏱ 0:01:23" или легаси " ⏱ 01:23"
 const ELAPSED_TAIL_RE = / ⏱️? (\d{1,3}:\d{2}(?::\d{2})?)\s*$/;
 
-/** Пробует снять канонический эмодзи-статус с начала текста. */
-function takeStatusEmoji(text: string): { emoji: string | null; rest: string } {
-  for (const canonical of STATUS_EMOJIS) {
+/**
+ * Палитра из настроек: эмодзи через пробел/перенос строки, дубли убираются.
+ * Пустая строка = стандартная палитра.
+ */
+export function parseStatusPalette(text: string): readonly string[] {
+  const unique = [...new Set(text.split(/\s+/).filter((part) => part))];
+  return unique.length > 0 ? unique : STATUS_EMOJIS;
+}
+
+/** Пробует снять эмодзи-статус из палитры с начала текста. */
+function takeStatusEmoji(
+  text: string,
+  palette: readonly string[],
+): { emoji: string | null; rest: string } {
+  for (const canonical of palette) {
     const base = canonical.replace(VARIATION_SELECTOR, "");
     if (!text.startsWith(base)) continue;
     let consumed = base.length;
@@ -46,7 +58,10 @@ function takeStatusEmoji(text: string): { emoji: string | null; rest: string } {
   return { emoji: null, rest: text };
 }
 
-export function parseTaskLine(line: string): ParsedTaskLine | null {
+export function parseTaskLine(
+  line: string,
+  palette: readonly string[] = STATUS_EMOJIS,
+): ParsedTaskLine | null {
   const match = line.match(TASK_RE);
   if (!match) return null;
 
@@ -60,7 +75,7 @@ export function parseTaskLine(line: string): ParsedTaskLine | null {
     if (elapsedSeconds !== null) rest = rest.slice(0, elapsedMatch.index);
   }
 
-  const { emoji, rest: text } = takeStatusEmoji(rest);
+  const { emoji, rest: text } = takeStatusEmoji(rest, palette);
 
   return {
     indent,
@@ -82,15 +97,23 @@ function serializeTaskLine(parsed: ParsedTaskLine): string {
 }
 
 /** Ставит/заменяет эмодзи-статус; null снимает. Не-задачи возвращает как есть. */
-export function withStatusEmoji(line: string, emoji: string | null): string {
-  const parsed = parseTaskLine(line);
+export function withStatusEmoji(
+  line: string,
+  emoji: string | null,
+  palette: readonly string[] = STATUS_EMOJIS,
+): string {
+  const parsed = parseTaskLine(line, palette);
   if (!parsed) return line;
   return serializeTaskLine({ ...parsed, statusEmoji: emoji });
 }
 
 /** Ставит/заменяет накопленное время в хвосте. Не-задачи возвращает как есть. */
-export function withElapsed(line: string, seconds: number): string {
-  const parsed = parseTaskLine(line);
+export function withElapsed(
+  line: string,
+  seconds: number,
+  palette: readonly string[] = STATUS_EMOJIS,
+): string {
+  const parsed = parseTaskLine(line, palette);
   if (!parsed) return line;
   return serializeTaskLine({ ...parsed, elapsedSeconds: seconds });
 }
@@ -128,15 +151,23 @@ export function stripFrontmatter(content: string): string {
 }
 
 /** Ставит/снимает галочку чекбокса. Не-задачи возвращает как есть. */
-export function withChecked(line: string, checked: boolean): string {
-  const parsed = parseTaskLine(line);
+export function withChecked(
+  line: string,
+  checked: boolean,
+  palette: readonly string[] = STATUS_EMOJIS,
+): string {
+  const parsed = parseTaskLine(line, palette);
   if (!parsed) return line;
   return serializeTaskLine({ ...parsed, checked });
 }
 
 /** Заменяет текст задачи, сохраняя чекбокс, эмодзи и время. */
-export function withText(line: string, text: string): string {
-  const parsed = parseTaskLine(line);
+export function withText(
+  line: string,
+  text: string,
+  palette: readonly string[] = STATUS_EMOJIS,
+): string {
+  const parsed = parseTaskLine(line, palette);
   if (!parsed) return line;
   return serializeTaskLine({ ...parsed, text });
 }

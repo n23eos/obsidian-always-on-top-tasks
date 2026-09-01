@@ -1,7 +1,8 @@
 // Единственный бегущий таймер: старт/стоп, запись в файл, восстановление
 // после перезапуска Obsidian (startedAt хранится в data.json).
 
-import { Notice, TFile } from "obsidian";
+import { TFile } from "obsidian";
+import { notify } from "./notify";
 import type TasksForFocusPlugin from "./main";
 import { commitSession, type CommitResult, type RunningTimer } from "./core/timer";
 import { addBreakTime } from "./core/breakLine";
@@ -40,8 +41,8 @@ export class TimerService {
       await this.plugin.app.vault.process(file, (content) => addBreakTime(content, seconds));
     } catch (error) {
       console.error("Always-on-Top Tasks: failed to write break time", error);
-      new Notice(
-        `Always-on-Top Tasks: could not save the ${formatDuration(seconds)} break. ` +
+      notify(
+        `could not save the ${formatDuration(seconds)} break. ` +
           "Add it to the ☕ line by hand.",
         10000,
       );
@@ -76,8 +77,8 @@ export class TimerService {
     const file = this.plugin.app.vault.getAbstractFileByPath(timer.filePath);
     if (!(file instanceof TFile)) {
       const lost = formatDuration(Math.floor((Date.now() - timer.startedAt) / 1000));
-      new Notice(
-        `Always-on-Top Tasks: file "${timer.filePath}" not found. The ${lost} session was not saved.`,
+      notify(
+        `file "${timer.filePath}" not found. The ${lost} session was not saved.`,
         10000,
       );
       await this.setRunning(null);
@@ -94,8 +95,8 @@ export class TimerService {
       // Запись сорвалась (диск, права, sync-конфликт): время не теряем молча.
       console.error("Always-on-Top Tasks: failed to write timer session", error);
       const lost = formatDuration(Math.floor((Date.now() - timer.startedAt) / 1000));
-      new Notice(
-        `Always-on-Top Tasks: could not write the ${lost} session to "${timer.filePath}".\n` +
+      notify(
+        `could not write the ${lost} session to "${timer.filePath}".\n` +
           `Add it to this task by hand: ${timer.lineText}`,
         15000,
       );
@@ -113,31 +114,30 @@ export class TimerService {
     const session = formatDuration(result.sessionSeconds);
 
     if (result.kind === "not-found") {
-      new Notice(
-        `Always-on-Top Tasks: the task "${timer.lineText}" was changed or removed.\n` +
+      notify(
+        `the task "${timer.lineText}" was changed or removed.\n` +
           `The ${session} session was not saved — add it by hand.`,
         15000,
       );
       return;
     }
     if (result.kind === "ambiguous") {
-      new Notice(
-        `Always-on-Top Tasks: several identical lines "${timer.lineText}".\n` +
+      notify(
+        `several identical lines "${timer.lineText}".\n` +
           `The ${session} session was not saved — add it by hand.`,
         15000,
       );
       return;
     }
     if (result.isLongSession) {
-      new Notice(
-        `Always-on-Top Tasks: saved ${session} — looks like the timer was left running. Check it.`,
+      notify(
+        `saved ${session} — looks like the timer was left running. Check it.`,
         10000,
       );
     }
   }
 
   private async setRunning(timer: RunningTimer | null): Promise<void> {
-    this.plugin.settings = { ...this.plugin.settings, runningTimer: timer };
-    await this.plugin.saveSettings();
+    await this.plugin.patchSettings({ runningTimer: timer });
   }
 }

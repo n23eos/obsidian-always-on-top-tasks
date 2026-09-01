@@ -55,14 +55,20 @@ gh attestation verify main.js --repo n23eos/obsidian-always-on-top-tasks
 
 ## Version floor
 
-`minAppVersion` is `1.4.0`. The review recommends the declarative settings API
-(`getSettingDefinitions`), which would make the settings searchable, but it only
-exists from Obsidian 1.13.0. Release 0.5.0 tried it and raised the floor to
-1.13.0 — a version Obsidian was not yet offering to ordinary users, so the
+`minAppVersion` is `1.4.10` — the version that introduced `AbstractInputSuggest`,
+which the file picker of the settings tab relies on. The review recommends the declarative settings API
+(`getSettingDefinitions`), which makes the settings searchable, but it only
+exists from Obsidian 1.13.0. Release 0.5.0 adopted it and raised the floor to
+1.13.0 — at a time when most users had not been offered 1.13 yet, so the
 release was unreachable for the people it was meant for. It was rolled back in
 0.6.0 and, having never been downloaded, deleted along with its tag and its
-`versions.json` entry. Revisit once 1.13 is widely available; the implementation
-is in the history of `src/SettingsTab.ts`.
+`versions.json` entry.
+
+Since 0.7.0 the plugin serves both APIs from one list of definitions
+(`src/SettingDefinitions.ts`): Obsidian 1.13+ calls `getSettingDefinitions()`
+and indexes the settings for search, older versions call `display()`, where an
+adapter draws the same list with the classic `Setting` builders. The floor
+stays at 1.4.10 and the review warning about settings search is gone.
 
 Deleting that entry was safe only because nobody had installed 0.5.0. As a rule,
 never rewrite `versions.json` entries for releases users may already run: that
