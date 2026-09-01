@@ -1,9 +1,12 @@
 # Always-on-Top Tasks
 
-An Obsidian plugin that pins one note **on top of every window** — a compact,
-semi-transparent overlay docked to the edge of your screen, where every task
-line gets a stopwatch and an emoji status. Everything is written back into the
-markdown file itself.
+**Always-on-Top Tasks is an Obsidian plugin that pins one note above every other window as a compact, semi-transparent overlay docked to the edge of the screen.** Every task line gets its own stopwatch: press play, work, press stop, and the elapsed time is appended to the line as ⏱️ H:MM:SS, with only one timer allowed to run at a time. A one-click emoji palette marks a line as in progress, blocked, deferred or done, and nested tasks keep their markdown indentation in the overlay. All of it is written back into the markdown file, so the time data stays plain text inside the vault and any assistant with access to the notes can read it. Desktop only, TypeScript bundled with esbuild.
+
+<div align="center">
+
+[![Star on GitHub](https://img.shields.io/github/stars/n23eos/obsidian-always-on-top-tasks?style=for-the-badge&logo=github&label=Star%20this%20repo&color=FFD700&labelColor=1a1a1a)](https://github.com/n23eos/obsidian-always-on-top-tasks)
+
+</div>
 
 ## The problems this solves
 
