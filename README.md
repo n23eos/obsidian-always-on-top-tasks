@@ -220,3 +220,7 @@ steals keyboard focus. See [docs/simplefocus.md](docs/simplefocus.md).
 ## License
 
 [MIT](LICENSE)
+
+## Support
+
+[![Buy me a coffee](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/n23eos)
