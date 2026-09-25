@@ -86,6 +86,12 @@ export class FocusOverlayView extends ItemView {
   private editingLineNo: number | null = null;
   /** Палитра статусов из настроек — фиксируется на время рендера. */
   private palette: readonly string[] = STATUS_EMOJIS;
+  private runningLineNo: number | null = null;
+  private pinnedEl: HTMLElement | null = null;
+  private runningRowEl: HTMLElement | null = null;
+  private topEl: HTMLElement | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private closed = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: TasksForFocusPlugin) {
     super(leaf);
@@ -117,8 +123,12 @@ export class FocusOverlayView extends ItemView {
   }
 
   onOpen(): Promise<void> {
+    this.closed = false;
     // Хром popout-окна (табы, view-header) прячет styles.css по этому классу.
     this.contentEl.addClass("tfa-overlay");
+    this.registerDomEvent(this.contentEl, "scroll", () => this.updatePinnedVisibility());
+    this.resizeObserver = new ResizeObserver(() => this.updatePinnedVisibility());
+    this.resizeObserver.observe(this.contentEl);
 
     this.registerEvent(
       this.plugin.app.vault.on("modify", (file) => {
@@ -151,6 +161,11 @@ export class FocusOverlayView extends ItemView {
   }
 
   onClose(): Promise<void> {
+    this.closed = true;
+    this.renderVersion++;
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.pinnedEl = this.runningRowEl = this.topEl = null;
     // Отложенный ререндер не должен сработать по уже закрытой вьюхе.
     if (this.renderTimeout !== null) {
       window.clearTimeout(this.renderTimeout);
@@ -167,6 +182,7 @@ export class FocusOverlayView extends ItemView {
   }
 
   private scheduleRender(): void {
+    if (this.closed) return;
     if (this.renderTimeout !== null) window.clearTimeout(this.renderTimeout);
     this.renderTimeout = window.setTimeout(() => {
       this.renderTimeout = null;
@@ -179,11 +195,14 @@ export class FocusOverlayView extends ItemView {
   }
 
   private async render(): Promise<void> {
+    if (this.closed) return;
     // Рендер асинхронный: строим во временный контейнер и подменяем DOM одним
     // куском. Устаревшая версия (пришёл новый рендер) молча выбрасывается.
     const version = ++this.renderVersion;
 
     if (!this.file) {
+      this.pinnedEl = this.runningRowEl = this.topEl = null;
+      this.runningLineNo = null;
       this.contentEl.empty();
       this.runningTimeEl = null;
       this.pinnedTimeEl = null;
@@ -204,8 +223,13 @@ export class FocusOverlayView extends ItemView {
 
     const stripped = stripFrontmatter(content);
     // Абсолютная нумерация строк файла — frontmatter только скрыт, не удалён.
-    const offset = content.split("\n").length - stripped.split("\n").length;
+    const fullLines = content.split("\n");
     const lines = stripped.split("\n");
+    const offset = fullLines.length - lines.length;
+    const timer = this.plugin.timers.running;
+    const activeLineNo = timer?.filePath === this.file.path
+      ? locateLine(fullLines, timer.lineNo, timer.lineText)
+      : null;
 
     const built = createDiv();
     const runningRef: RunningRef = {
@@ -239,7 +263,7 @@ export class FocusOverlayView extends ItemView {
       if (parsed.checked) doneCount += 1;
       if (parsed.checked && hideCompleted) continue; // посчитали, но не показываем
       visibleCount += 1;
-      this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef);
+      this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef, offset + i === activeLineNo);
     }
     await flushMarkdown();
 
@@ -278,8 +302,18 @@ export class FocusOverlayView extends ItemView {
       breakButton.addEventListener("click", () => safe(this.onToggleBreak()));
     }
 
+    const scrollTop = this.contentEl.scrollTop;
     this.contentEl.empty();
     while (built.firstChild) this.contentEl.appendChild(built.firstChild);
+    this.contentEl.scrollTop = scrollTop;
+    this.runningLineNo = activeLineNo;
+    this.topEl = top;
+    this.pinnedEl = top.querySelector(".tfa-pinned");
+    this.runningRowEl = this.contentEl.querySelector(".tfa-running");
+    this.resizeObserver?.disconnect();
+    this.resizeObserver?.observe(this.contentEl);
+    for (const child of Array.from(this.contentEl.children)) this.resizeObserver?.observe(child);
+    this.updatePinnedVisibility();
     this.runningTimeEl = runningRef.timeEl;
     this.runningBaseSeconds = runningRef.baseSeconds;
     this.pinnedTimeEl = pinnedTimeEl;
@@ -293,6 +327,18 @@ export class FocusOverlayView extends ItemView {
       const addRow = this.contentEl.querySelector<HTMLElement>(".tfa-add");
       if (addRow) this.openAddInput(addRow);
     }
+  }
+
+  private updatePinnedVisibility(): void {
+    if (!this.pinnedEl || !this.runningRowEl || !this.topEl) return;
+    this.pinnedEl.hidden = this.runningRowEl.getBoundingClientRect().bottom >
+      this.topEl.getBoundingClientRect().bottom;
+  }
+
+  private isRunningTask(lineNo: number, rawLine: string): boolean {
+    const timer = this.plugin.timers.running;
+    return timer !== null && timer.filePath === this.file?.path &&
+      timer.lineText === rawLine && this.runningLineNo === lineNo;
   }
 
   /** Шапка: имя заметки, скрыть сделанные, пин/анпин, закрыть; под ней прогресс. */
@@ -337,6 +383,7 @@ export class FocusOverlayView extends ItemView {
     if (!task) return null;
 
     const pinned = top.createDiv({ cls: "tfa-pinned" });
+    pinned.hidden = true;
 
     pinned.createSpan({ cls: "tfa-pinned-text", text: task.text });
     const timeEl = pinned.createSpan({
@@ -344,11 +391,10 @@ export class FocusOverlayView extends ItemView {
       text: formatDuration(runningRef.baseSeconds),
     });
 
-    const stopButton = pinned.createEl("button", {
-      cls: "tfa-btn tfa-timer tfa-timer-on",
-      text: "⏹",
-      attr: { "aria-label": "Stop timer" },
-    });
+    const pending = this.plugin.timers.running?.stoppedAt !== undefined;
+    if (pending) pinned.addClass("tfa-pending-save");
+    const stopButton = iconButton(pinned, pending ? "rotate-cw" : "square", pending ? "Retry save" : "Stop timer");
+    stopButton.addClasses(["tfa-timer", "tfa-timer-on"]);
     stopButton.addEventListener("click", () =>
       safe(this.onToggleTimer(task.lineNo, task.rawLine)),
     );
@@ -431,11 +477,8 @@ export class FocusOverlayView extends ItemView {
     rawLine: string,
     parsed: ParsedTaskLine,
     runningRef: RunningRef,
+    isRunning: boolean,
   ): void {
-    const isRunning = this.file
-      ? this.plugin.timers.isRunningOn(this.file.path, rawLine)
-      : false;
-
     const row = container.createDiv({
       cls: `tfa-task${parsed.checked ? " tfa-done" : ""}${isRunning ? " tfa-running" : ""}`,
     });
@@ -446,6 +489,7 @@ export class FocusOverlayView extends ItemView {
 
     const checkbox = row.createEl("input", { type: "checkbox", cls: "tfa-check" });
     checkbox.checked = parsed.checked;
+    checkbox.setAttribute("aria-label", `Complete: ${parsed.text}`);
     checkbox.addEventListener("click", (event) => {
       event.preventDefault(); // состояние меняет только запись в файл
       safe(this.onToggleCheckbox(lineNo, rawLine, parsed));
@@ -476,11 +520,12 @@ export class FocusOverlayView extends ItemView {
       text: baseSeconds > 0 || isRunning ? formatDuration(baseSeconds) : "",
     });
 
-    const timerButton = row.createEl("button", {
-      cls: `tfa-btn tfa-timer${isRunning ? " tfa-timer-on" : ""}`,
-      text: isRunning ? "⏹" : "▶",
-      attr: { "aria-label": isRunning ? "Stop timer" : "Start timer" },
-    });
+    const pending = isRunning && this.plugin.timers.running?.stoppedAt !== undefined;
+    const timerButton = iconButton(row, pending ? "rotate-cw" : isRunning ? "square" : "play",
+      pending ? "Retry save" : isRunning ? "Stop timer" : "Start timer");
+    if (pending) row.addClass("tfa-pending-save");
+    timerButton.addClass("tfa-timer");
+    if (isRunning) timerButton.addClass("tfa-timer-on");
     timerButton.addEventListener("click", () => safe(this.onToggleTimer(lineNo, rawLine)));
 
     if (isRunning) {
@@ -501,10 +546,14 @@ export class FocusOverlayView extends ItemView {
     let targetLineNo = lineNo;
     let targetText = rawLine;
 
-    if (!parsed.checked && this.plugin.timers.isRunningOn(this.file.path, rawLine)) {
+    if (!parsed.checked && this.isRunningTask(lineNo, rawLine)) {
       // Завершение задачи с бегущим таймером: сперва коммит времени.
       const result = await this.plugin.timers.stop();
-      if (result?.kind === "ok" && result.newLineText !== undefined && result.lineNo !== undefined) {
+      if (!result || (result.kind !== "ok" && result.kind !== "already-committed")) {
+        this.scheduleRender();
+        return;
+      }
+      if (result.newLineText !== undefined && result.lineNo !== undefined) {
         targetLineNo = result.lineNo;
         targetText = result.newLineText;
       }
@@ -520,11 +569,14 @@ export class FocusOverlayView extends ItemView {
   private async onToggleTimer(lineNo: number, rawLine: string): Promise<void> {
     if (!this.file) return;
 
-    if (this.plugin.timers.isRunningOn(this.file.path, rawLine)) {
-      await this.plugin.timers.stop();
-    } else {
-      await this.plugin.timers.start(this.file.path, lineNo, rawLine);
-      this.scheduleRender(); // старт не меняет файл — обновим вид сами
+    try {
+      if (this.isRunningTask(lineNo, rawLine)) {
+        await this.plugin.timers.stop();
+      } else {
+        await this.plugin.timers.start(this.file.path, lineNo, rawLine);
+      }
+    } finally {
+      this.scheduleRender();
     }
     this.plugin.overlay.blur();
   }
@@ -557,11 +609,17 @@ export class FocusOverlayView extends ItemView {
         );
       });
     }
+    this.resizeObserver?.observe(strip);
+    this.updatePinnedVisibility();
   }
 
   private closeEmojiStrip(): void {
     this.openStripLineNo = null;
-    this.contentEl.querySelectorAll(".tfa-strip").forEach((el) => el.remove());
+    this.contentEl.querySelectorAll(".tfa-strip").forEach((el) => {
+      this.resizeObserver?.unobserve(el);
+      el.remove();
+    });
+    this.updatePinnedVisibility();
     if (this.pendingRender) {
       this.pendingRender = false;
       safe(this.render());
@@ -623,6 +681,8 @@ export class FocusOverlayView extends ItemView {
     transform: (line: string) => string,
   ): Promise<void> {
     if (!this.file) return;
+    const timerAtStart = this.plugin.timers.running;
+    const editsRunningTask = this.isRunningTask(lineNo, expectedText);
     let applied = false;
     let newLineText = "";
     let newIndex = -1;
@@ -646,6 +706,7 @@ export class FocusOverlayView extends ItemView {
     const timer = this.plugin.settings.runningTimer;
     if (
       timer &&
+      timer === timerAtStart && editsRunningTask &&
       timer.filePath === this.file.path &&
       timer.lineText === expectedText &&
       newLineText !== expectedText
@@ -668,7 +729,7 @@ export class FocusOverlayView extends ItemView {
 
     const timer = this.plugin.settings.runningTimer;
     if (!timer || !this.runningTimeEl) return;
-    const sessionSeconds = Math.max(0, Math.floor((Date.now() - timer.startedAt) / 1000));
+    const sessionSeconds = Math.max(0, Math.floor(((timer.stoppedAt ?? Date.now()) - timer.startedAt) / 1000));
     const elapsed = formatDuration(this.runningBaseSeconds + sessionSeconds);
     this.runningTimeEl.setText(elapsed);
     this.pinnedTimeEl?.setText(elapsed);
@@ -677,7 +738,7 @@ export class FocusOverlayView extends ItemView {
 
     // Мягкое напоминание о перерыве: подсветка + один Notice за сессию.
     const { breaksEnabled, breakReminderMinutes } = this.plugin.settings;
-    if (breaksEnabled && sessionSeconds >= breakReminderMinutes * 60) {
+    if (timer.stoppedAt === undefined && breaksEnabled && sessionSeconds >= breakReminderMinutes * 60) {
       this.runningTimeEl.addClass("tfa-time-overdue");
       this.pinnedTimeEl?.addClass("tfa-time-overdue");
       if (this.lastReminderStartedAt !== timer.startedAt) {

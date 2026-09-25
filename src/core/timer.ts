@@ -13,10 +13,12 @@ export interface RunningTimer {
   lineNo: number;
   lineText: string;
   startedAt: number; // epoch ms
+  /** Fixed end of a stopped session that is waiting to be written. */
+  stoppedAt?: number; // epoch ms
 }
 
 export interface CommitResult {
-  kind: "ok" | "not-found" | "ambiguous";
+  kind: "ok" | "already-committed" | "not-found" | "ambiguous";
   /** Новое содержимое файла (только при kind === "ok"). */
   content?: string;
   /** Новый текст строки — для перепривязки бегущего таймера. */
@@ -48,19 +50,54 @@ export function locateTimerLine(lines: readonly string[], timer: RunningTimer): 
 }
 
 /** Останавливает сессию: возвращает новое содержимое файла с добавленным временем. */
-export function commitSession(content: string, timer: RunningTimer, nowMs: number): CommitResult {
-  const sessionSeconds = Math.max(0, Math.floor((nowMs - timer.startedAt) / 1000));
+export function commitSession(
+  content: string,
+  timer: RunningTimer,
+  nowMs: number,
+  recovery = timer.stoppedAt !== undefined,
+): CommitResult {
+  const stoppedAt = timer.stoppedAt ?? nowMs;
+  const sessionSeconds = Math.max(0, Math.floor((stoppedAt - timer.startedAt) / 1000));
   const isLongSession = sessionSeconds > LONG_SESSION_THRESHOLD_SECONDS;
 
   const lines = content.split("\n");
+  const previousSeconds = parseTaskLine(timer.lineText)?.elapsedSeconds ?? 0;
+  const expectedLineText = withElapsed(timer.lineText, previousSeconds + sessionSeconds);
+  if (recovery && expectedLineText !== timer.lineText) {
+    if (lines[timer.lineNo] === expectedLineText) {
+      return {
+        kind: "already-committed",
+        newLineText: expectedLineText,
+        lineNo: timer.lineNo,
+        sessionSeconds,
+        isLongSession,
+      };
+    }
+    const expectedMatches = lines.reduce<number[]>((found, line, index) => {
+      return line === expectedLineText ? [...found, index] : found;
+    }, []);
+    const originalExists = lines.some((line) => line === timer.lineText);
+    if (expectedMatches.length === 1 && !originalExists) {
+      return {
+        kind: "already-committed",
+        newLineText: expectedLineText,
+        lineNo: expectedMatches[0],
+        sessionSeconds,
+        isLongSession,
+      };
+    }
+    if (expectedMatches.length > 0) {
+      return { kind: "ambiguous", sessionSeconds, isLongSession };
+    }
+  }
   const lineNo = locateTimerLine(lines, timer);
   if (lineNo === null) {
     const exists = lines.some((line) => line === timer.lineText);
     return { kind: exists ? "ambiguous" : "not-found", sessionSeconds, isLongSession };
   }
 
-  const previousSeconds = parseTaskLine(lines[lineNo])?.elapsedSeconds ?? 0;
-  const newLineText = withElapsed(lines[lineNo], previousSeconds + sessionSeconds);
+  const currentSeconds = parseTaskLine(lines[lineNo])?.elapsedSeconds ?? 0;
+  const newLineText = withElapsed(lines[lineNo], currentSeconds + sessionSeconds);
   const newLines = lines.map((line, index) => (index === lineNo ? newLineText : line));
 
   return {

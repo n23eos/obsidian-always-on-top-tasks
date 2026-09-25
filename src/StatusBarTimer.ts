@@ -4,11 +4,13 @@
 import { setIcon } from "obsidian";
 import type TasksForFocusPlugin from "./main";
 import { formatDuration, parseTaskLine } from "./core/taskLine";
+import { notify } from "./notify";
 
 const MAX_TASK_CHARS = 32;
 
 export class StatusBarTimer {
   private el: HTMLElement | null = null;
+  private textEl: HTMLElement | null = null;
 
   constructor(private readonly plugin: TasksForFocusPlugin) {}
 
@@ -19,11 +21,29 @@ export class StatusBarTimer {
       const el = this.plugin.addStatusBarItem();
       el.addClasses(["tfa-statusbar", "mod-clickable"]);
       el.setAttribute("aria-label", "Stop the running timer");
-      el.addEventListener("click", () => void this.plugin.stopRunningTimer());
+      el.setAttribute("role", "button");
+      el.tabIndex = 0;
+      const stop = () => {
+        void this.plugin.stopRunningTimer().catch((error: unknown) => {
+          console.error("Always-on-Top Tasks: timer action failed", error);
+          notify("could not finish the timer action. Retry save.");
+        });
+      };
+      el.addEventListener("click", stop);
+      el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          stop();
+        }
+      });
       this.el = el;
+      const icon = el.createSpan({ cls: "tfa-statusbar-icon" });
+      setIcon(icon, "timer");
+      this.textEl = el.createSpan();
     } else if (!wanted && this.el) {
       this.el.remove();
       this.el = null;
+      this.textEl = null;
     }
     this.tick();
   }
@@ -38,13 +58,11 @@ export class StatusBarTimer {
     }
     const parsed = parseTaskLine(timer.lineText);
     const baseSeconds = parsed?.elapsedSeconds ?? 0;
-    const sessionSeconds = Math.max(0, Math.floor((Date.now() - timer.startedAt) / 1000));
+    const sessionSeconds = Math.max(0, Math.floor(((timer.stoppedAt ?? Date.now()) - timer.startedAt) / 1000));
     const text = truncate(parsed?.text ?? timer.lineText);
+    this.el.setAttribute("aria-label", timer.stoppedAt === undefined ? "Stop the running timer" : "Retry save");
 
-    this.el.empty();
-    const icon = this.el.createSpan({ cls: "tfa-statusbar-icon" });
-    setIcon(icon, "timer");
-    this.el.createSpan({ text: ` ${formatDuration(baseSeconds + sessionSeconds)} · ${text}` });
+    this.textEl?.setText(` ${formatDuration(baseSeconds + sessionSeconds)} · ${text}${timer.stoppedAt === undefined ? "" : " · Retry save"}`);
     this.el.show();
   }
 }

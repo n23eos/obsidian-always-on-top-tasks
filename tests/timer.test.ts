@@ -8,8 +8,13 @@ import {
 
 const NOTE = ["# Focus", "", "- [ ] Fix auth bug", "- [ ] Call mom", "- [x] ✅ Ship it ⏱️ 0:10:00"];
 
-function timerAt(lineNo: number, lineText: string, startedAt: number): RunningTimer {
-  return { filePath: "focus.md", lineNo, lineText, startedAt };
+function timerAt(
+  lineNo: number,
+  lineText: string,
+  startedAt: number,
+  stoppedAt?: number,
+): RunningTimer {
+  return { filePath: "focus.md", lineNo, lineText, startedAt, stoppedAt };
 }
 
 describe("locateTimerLine", () => {
@@ -100,5 +105,57 @@ describe("commitSession", () => {
   test("clock skew (now before start) clamps to zero, not negative", () => {
     const result = commitSession(NOTE.join("\n"), timerAt(2, "- [ ] Fix auth bug", START), START - 5000);
     expect(result.sessionSeconds).toBe(0);
+  });
+
+  test("uses the persisted stop time when retrying later", () => {
+    const result = commitSession(
+      NOTE.join("\n"),
+      timerAt(2, "- [ ] Fix auth bug", START, START + 10_000),
+      START + 60_000,
+    );
+    expect(result.sessionSeconds).toBe(10);
+    expect(result.content?.split("\n")[2]).toBe("- [ ] Fix auth bug ⏱️ 0:00:10");
+  });
+
+  test("recognizes a stopped session that was already written", () => {
+    const timer = timerAt(2, "- [ ] Fix auth bug", START, START + 10_000);
+    const lines = [...NOTE];
+    lines[2] = "- [ ] Fix auth bug ⏱️ 0:00:10";
+    lines[3] = "- [ ] Fix auth bug";
+    const content = lines.join("\n");
+    const result = commitSession(content, timer, START + 60_000);
+    expect(result.kind).toBe("already-committed");
+    expect(result.content).toBeUndefined();
+    expect(result.lineNo).toBe(2);
+    expect(result.newLineText).toBe("- [ ] Fix auth bug ⏱️ 0:00:10");
+    expect(result.sessionSeconds).toBe(10);
+  });
+
+  test("does not write an original duplicate when a moved post-image may be committed", () => {
+    const timer = timerAt(0, "- [ ] Fix auth bug", START, START + 10_000);
+    const content = [
+      "- [ ] Different task",
+      "- [ ] Fix auth bug ⏱️ 0:00:10",
+      "- [ ] Fix auth bug",
+    ].join("\n");
+
+    const result = commitSession(content, timer, START + 60_000);
+
+    expect(result.kind).toBe("ambiguous");
+    expect(result.content).toBeUndefined();
+    expect(result.sessionSeconds).toBe(10);
+  });
+
+  test("does not trust a reintroduced original anchor during recovery", () => {
+    const timer = timerAt(0, "- [ ] Fix auth bug", START, START + 10_000);
+    const content = [
+      "- [ ] Fix auth bug",
+      "- [ ] Fix auth bug ⏱️ 0:00:10",
+    ].join("\n");
+
+    const result = commitSession(content, timer, START + 60_000, true);
+
+    expect(result.kind).toBe("ambiguous");
+    expect(result.content).toBeUndefined();
   });
 });

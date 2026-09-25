@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ru"><meta charset="utf-8"><title>Focus UI verification</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+:root { color-scheme: dark; --background-primary:#202126; --background-secondary:#292a31; --background-modifier-hover:#ffffff0c; --background-modifier-border:#ffffff16; --text-normal:#e5e5e9; --text-muted:#a1a2af; --text-faint:#898a98; --interactive-accent:#a494f5; --color-orange:#edb666; }
+body.light { color-scheme: light; --background-primary:#fff; --background-secondary:#f3f3f7; --background-modifier-hover:#00000008; --background-modifier-border:#00000018; --text-normal:#282934; --text-muted:#646577; --text-faint:#727381; --interactive-accent:#7056bf; }
+* { box-sizing:border-box; } body { margin:0; background:var(--background-secondary); color:var(--text-normal); font:14px -apple-system, BlinkMacSystemFont, sans-serif; padding:32px; }
+nav { display:flex; gap:12px; align-items:center; margin-bottom:24px; flex-wrap:wrap; }
+button,input { font:inherit; color:inherit; } nav button { padding:8px 12px; }
+.window { width:340px; background:var(--background-primary); border:1px solid var(--background-modifier-border); border-radius:12px; box-shadow:0 12px 40px #0002; overflow:hidden; }
+.tfa-overlay { height:430px; overflow-y:auto; scrollbar-width:thin; }
+.tfa-check { accent-color:var(--interactive-accent); }
+#status { padding:12px 0; } #notice,#errors { max-width:680px; white-space:pre-wrap; } #errors { color:#e87e7e; } pre { font-size:12px; max-width:800px; white-space:pre-wrap; }
+</style>
+<nav><button id="theme">Светлая / тёмная</button><button id="width">Ширина 280 / 340</button><button id="fail">Ошибка следующей записи</button><button id="reset">Сбросить стенд</button></nav>
+<div class="window"><div id="overlay"></div></div><div id="status"></div>
+<p id="notice" role="status"></p><p id="errors" role="alert"></p><details><summary>Тестовая заметка</summary><pre id="source"></pre></details>
+<script type="module" src="/bundle.js"></script></html>

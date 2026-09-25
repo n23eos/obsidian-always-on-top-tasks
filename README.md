@@ -141,6 +141,13 @@ running timer.
 
 ## Behaviour worth knowing
 
+- Failed timer writes preserve a stopped session with its original end time.
+  Use **Retry save** on the task or status bar after resolving the error.
+  Starting another task first retries that pending save.
+- The pinned task summary appears only after its row scrolls above the header.
+  Narrow panels place task time and controls below the title.
+- Timer operations run sequentially, including rapid switches and repeated stops.
+
 - **One timer at a time.** Starting a timer commits and stops the previous one.
 - **Checking a task stops its timer** and writes the session first.
 - **A running timer survives a restart** of Obsidian.
@@ -191,6 +198,12 @@ src/StatusBarTimer.ts  the running timer in the main window's status bar
 src/overlay/    popout window controller and the overlay view
 macos/          the standalone SimpleFocus app, unrelated to the plugin build
 ```
+
+For a browser UI check with synthetic notes, run `node scripts/ui-preview.mjs`
+and open `http://127.0.0.1:4319`. This runs the production overlay and timer
+service against a small Obsidian adapter. It covers scrolling, narrow panels,
+light/dark colors, duplicate tasks and simulated write failure. Native Electron
+window behavior still requires Obsidian.
 
 Put `VAULT_PATH=/path/to/vault` into `.env` and run `npm run install-local`:
 it creates the plugin folder in your vault and symlinks `main.js`,
