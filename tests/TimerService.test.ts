@@ -4,6 +4,7 @@ vi.mock("../src/notify", () => ({ notify: vi.fn() }));
 
 import { TimerService } from "../src/TimerService";
 import type { RunningTimer } from "../src/core/timer";
+import { notify } from "../src/notify";
 
 const START = 1_000_000;
 const TASK = "- [ ] First task";
@@ -18,7 +19,9 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 
 interface HarnessOptions {
   timer?: RunningTimer | null;
+  focusNotePath?: string;
   content?: string;
+  fileByPath?: (path: string) => { path: string; extension: string } | null;
   process?: (
     update: (content: string) => string,
     write: (content: string) => void,
@@ -39,17 +42,24 @@ function createHarness(options: HarnessOptions = {}) {
     content = update(content);
   });
   const plugin = {
-    settings: { runningTimer: options.timer ?? null },
+    settings: {
+      focusNotePath: options.focusNotePath ?? "focus.md",
+      runningTimer: options.timer ?? null,
+    },
     app: {
       vault: {
-        getAbstractFileByPath: vi.fn(() => file),
+        getAbstractFileByPath: vi.fn((path: string) =>
+          options.fileByPath ? options.fileByPath(path) : file,
+        ),
         process,
       },
     },
-    patchSettings: vi.fn(async (patch: { runningTimer?: RunningTimer | null }) => {
-      if (!("runningTimer" in patch)) return;
-      plugin.settings = { ...plugin.settings, runningTimer: patch.runningTimer ?? null };
-      await options.patch?.(plugin.settings.runningTimer);
+    patchSettings: vi.fn(async (patch: {
+      focusNotePath?: string;
+      runningTimer?: RunningTimer | null;
+    }) => {
+      plugin.settings = { ...plugin.settings, ...patch };
+      if ("runningTimer" in patch) await options.patch?.(plugin.settings.runningTimer);
     }),
   };
   const service = new TimerService(plugin as never);
@@ -57,10 +67,119 @@ function createHarness(options: HarnessOptions = {}) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
 describe("TimerService", () => {
+  test("moves the selected note and active timer to a renamed note while the overlay is closed", async () => {
+    const newFile = { path: "renamed.md", extension: "md" };
+    const harness = createHarness({
+      timer: { filePath: "focus.md", lineNo: 0, lineText: TASK, startedAt: START },
+      fileByPath: (path) => path === newFile.path ? newFile : null,
+    });
+    vi.spyOn(Date, "now").mockReturnValue(START + 10_000);
+
+    const renaming = harness.service.renamePaths("focus.md", "renamed.md", false);
+    const stopping = harness.service.stop();
+    const [, result] = await Promise.all([renaming, stopping]);
+
+    expect(harness.plugin.settings.focusNotePath).toBe("renamed.md");
+    expect(result?.kind).toBe("ok");
+    expect(harness.getContent()).toBe(`${TASK} ⏱️ 0:00:10`);
+    expect(harness.plugin.app.vault.getAbstractFileByPath).toHaveBeenCalledWith("renamed.md");
+  });
+
+  test("moves descendant focus and pending stopped timer paths after a folder rename", async () => {
+    const pending: RunningTimer = {
+      filePath: "old/daily/focus.md",
+      lineNo: 0,
+      lineText: TASK,
+      startedAt: START,
+      stoppedAt: START + 10_000,
+    };
+    const harness = createHarness({
+      timer: pending,
+      focusNotePath: "old/daily/focus.md",
+    });
+
+    await harness.service.renamePaths("old", "archive/old", true);
+
+    expect(harness.plugin.settings.focusNotePath).toBe("archive/old/daily/focus.md");
+    expect(harness.service.running).toEqual({
+      ...pending,
+      filePath: "archive/old/daily/focus.md",
+    });
+  });
+
+  test("writes a break to the renamed note", async () => {
+    const renamedFile = { path: "renamed.md", extension: "md" };
+    const harness = createHarness({
+      fileByPath: (path) => path === renamedFile.path ? renamedFile : null,
+    });
+    const now = vi.spyOn(Date, "now").mockReturnValue(START);
+
+    await harness.service.startBreak("focus.md");
+    await harness.service.renamePaths("focus.md", "renamed.md", false);
+    now.mockReturnValue(START + 10_000);
+    await harness.service.endBreak();
+
+    expect(harness.getContent()).toBe(`${TASK}\n☕ 0:00:10`);
+    expect(harness.plugin.app.vault.getAbstractFileByPath).toHaveBeenCalledWith("renamed.md");
+  });
+
+  test("preserves a break with a fixed end time when its note is missing", async () => {
+    let fileAvailable = false;
+    const file = { path: "focus.md", extension: "md" };
+    const harness = createHarness({
+      fileByPath: () => fileAvailable ? file : null,
+    });
+    const now = vi.spyOn(Date, "now").mockReturnValue(START);
+
+    await harness.service.startBreak("focus.md");
+    now.mockReturnValue(START + 10_000);
+    await harness.service.endBreak();
+
+    expect(harness.service.breakStartedAt).toBe(START);
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining("0:00:10 break"),
+      15000,
+    );
+
+    fileAvailable = true;
+    now.mockReturnValue(START + 60_000);
+    await harness.service.endBreak();
+
+    expect(harness.getContent()).toBe(`${TASK}\n☕ 0:00:10`);
+    expect(harness.service.breakStartedAt).toBeNull();
+  });
+
+  test("retries a failed break write without increasing its duration", async () => {
+    let fail = true;
+    const harness = createHarness({
+      process: async (update, write) => {
+        if (fail) {
+          fail = false;
+          throw new Error("disk unavailable");
+        }
+        write(update(harness.getContent()));
+      },
+    });
+    const now = vi.spyOn(Date, "now").mockReturnValue(START);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await harness.service.startBreak("focus.md");
+    now.mockReturnValue(START + 10_000);
+    await harness.service.endBreak();
+    expect(harness.service.breakStartedAt).toBe(START);
+
+    now.mockReturnValue(START + 60_000);
+    await harness.service.endBreak();
+
+    expect(harness.getContent()).toBe(`${TASK}\n☕ 0:00:10`);
+    expect(harness.service.breakStartedAt).toBeNull();
+  });
+
   test("serializes a concurrent stop behind an unfinished start", async () => {
     vi.spyOn(Date, "now").mockReturnValue(START);
     const saveStarted = deferred();

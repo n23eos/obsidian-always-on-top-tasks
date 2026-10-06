@@ -1,4 +1,4 @@
-import { Plugin, TFile } from "obsidian";
+import { Plugin, TFile, TFolder, type TAbstractFile } from "obsidian";
 import { OverlayController } from "./overlay/OverlayController";
 import { FocusOverlayView, FOCUS_OVERLAY_VIEW_TYPE } from "./overlay/FocusOverlayView";
 import { TimerService } from "./TimerService";
@@ -24,6 +24,11 @@ export default class TasksForFocusPlugin extends Plugin {
     this.syncRibbon();
     this.statusBar.sync();
     this.registerInterval(window.setInterval(() => this.statusBar.tick(), STATUS_BAR_TICK_MS));
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        void this.handleRename(file, oldPath);
+      }),
+    );
 
     this.addCommand({
       id: "toggle-focus-overlay",
@@ -92,6 +97,16 @@ export default class TasksForFocusPlugin extends Plugin {
   async stopRunningTimer(): Promise<void> {
     await this.timers.stop();
     this.statusBar.tick();
+    this.refreshOverlayViews();
+  }
+
+  private async handleRename(file: TAbstractFile, oldPath: string): Promise<void> {
+    try {
+      await this.timers.renamePaths(oldPath, file.path, file instanceof TFolder);
+    } catch (error) {
+      console.error("Always-on-Top Tasks: failed to preserve paths after rename", error);
+      notify("could not preserve timer paths after the rename. Check the selected note before saving time.", 15000);
+    }
     this.refreshOverlayViews();
   }
 

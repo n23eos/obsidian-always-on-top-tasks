@@ -15,6 +15,8 @@ function isTFile(file: TAbstractFile | null): file is TFile {
 export class TimerService {
   /** Начало перерыва (epoch ms). Не персистится: рестарт Obsidian = перерыв забыт. */
   breakStartedAt: number | null = null;
+  /** Фиксированный конец перерыва, который ожидает повторной записи. */
+  breakStoppedAt: number | null = null;
   /** Заметка, в которую запишется суммарное время перерывов. */
   private breakFilePath: string | null = null;
   private operationQueue: Promise<void> = Promise.resolve();
@@ -28,39 +30,81 @@ export class TimerService {
 
   private async startBreakNow(filePath: string): Promise<void> {
     await this.stopNow();
-    if (this.running) return;
+    if (this.running || this.breakStartedAt !== null) return;
     this.breakStartedAt = Date.now();
+    this.breakStoppedAt = null;
     this.breakFilePath = filePath;
   }
 
   /** Конец перерыва: время добавляется к строке "☕ Ч:ММ:СС" в заметке. */
   async endBreak(): Promise<void> {
-    return this.serialize(async () => this.endBreakNow());
+    await this.serialize(async () => this.endBreakNow());
   }
 
-  private async endBreakNow(): Promise<void> {
+  private async endBreakNow(): Promise<boolean> {
     const startedAt = this.breakStartedAt;
     const filePath = this.breakFilePath;
-    this.breakStartedAt = null;
-    this.breakFilePath = null;
-    if (startedAt === null || !filePath) return;
+    if (startedAt === null || !filePath) return true;
 
-    const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-    if (seconds === 0) return;
+    const stoppedAt = this.breakStoppedAt ?? Date.now();
+    this.breakStoppedAt = stoppedAt;
+    const seconds = Math.max(0, Math.floor((stoppedAt - startedAt) / 1000));
+    if (seconds === 0) {
+      this.clearBreak();
+      return true;
+    }
 
     const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
-    if (!isTFile(file)) return; // заметку удалили, перерыв некуда писать
+    if (!isTFile(file)) {
+      notify(
+        `file "${filePath}" not found. The ${formatDuration(seconds)} break is preserved; restore or rename the note and retry save.`,
+        15000,
+      );
+      return false;
+    }
 
     try {
       await this.plugin.app.vault.process(file, (content) => addBreakTime(content, seconds));
     } catch (error) {
       console.error("Always-on-Top Tasks: failed to write break time", error);
       notify(
-        `could not save the ${formatDuration(seconds)} break. ` +
-          "Add it to the ☕ line by hand.",
-        10000,
+        `could not save the ${formatDuration(seconds)} break. It is preserved; retry save after storage recovers.`,
+        15000,
       );
+      return false;
     }
+    this.clearBreak();
+    return true;
+  }
+
+  /** Обновляет пути состояния после rename заметки или папки. */
+  async renamePaths(oldPath: string, newPath: string, folder: boolean): Promise<void> {
+    return this.serialize(async () => {
+      const focusNotePath = renamedPath(
+        this.plugin.settings.focusNotePath,
+        oldPath,
+        newPath,
+        folder,
+      );
+      const running = this.running;
+      const patch: {
+        focusNotePath?: string;
+        runningTimer?: RunningTimer;
+      } = {};
+      if (focusNotePath !== this.plugin.settings.focusNotePath) {
+        patch.focusNotePath = focusNotePath;
+      }
+      if (running) {
+        const runningFilePath = renamedPath(running.filePath, oldPath, newPath, folder);
+        if (runningFilePath !== running.filePath) {
+          patch.runningTimer = { ...running, filePath: runningFilePath };
+        }
+      }
+      if (this.breakFilePath) {
+        this.breakFilePath = renamedPath(this.breakFilePath, oldPath, newPath, folder);
+      }
+      if (Object.keys(patch).length > 0) await this.plugin.patchSettings(patch);
+    });
   }
 
   get running(): RunningTimer | null {
@@ -84,7 +128,8 @@ export class TimerService {
   }
 
   private async startNow(filePath: string, lineNo: number, lineText: string): Promise<void> {
-    await this.endBreakNow(); // работа началась, перерыв записан в заметку
+    const breakSaved = await this.endBreakNow(); // работа началась, перерыв записан в заметку
+    if (!breakSaved) return;
     const running = this.running;
     const sameTarget =
       running !== null &&
@@ -229,6 +274,12 @@ export class TimerService {
     }
   }
 
+  private clearBreak(): void {
+    this.breakStartedAt = null;
+    this.breakStoppedAt = null;
+    this.breakFilePath = null;
+  }
+
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.operationQueue.then(operation);
     this.operationQueue = result.then(
@@ -237,4 +288,17 @@ export class TimerService {
     );
     return result;
   }
+}
+
+function renamedPath(
+  path: string,
+  oldPath: string,
+  newPath: string,
+  folder: boolean,
+): string {
+  if (path === oldPath) return newPath;
+  if (folder && path.startsWith(`${oldPath}/`)) {
+    return `${newPath}${path.slice(oldPath.length)}`;
+  }
+  return path;
 }

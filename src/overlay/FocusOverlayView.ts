@@ -136,14 +136,6 @@ export class FocusOverlayView extends ItemView {
       }),
     );
     this.registerEvent(
-      this.plugin.app.vault.on("rename", (file, oldPath) => {
-        if (oldPath === this.file?.path && file instanceof TFile) {
-          this.file = file;
-          this.scheduleRender();
-        }
-      }),
-    );
-    this.registerEvent(
       this.plugin.app.vault.on("delete", (file) => {
         if (file.path === this.file?.path) {
           this.file = null;
@@ -723,7 +715,11 @@ export class FocusOverlayView extends ItemView {
     // Секундомер перерыва (идёт и без бегущего таймера задачи).
     const breakStartedAt = this.plugin.timers.breakStartedAt;
     if (this.breakEl && breakStartedAt !== null) {
-      const breakSeconds = Math.max(0, Math.floor((Date.now() - breakStartedAt) / 1000));
+      const breakStoppedAt = this.plugin.timers.breakStoppedAt;
+      const breakSeconds = Math.max(
+        0,
+        Math.floor(((breakStoppedAt ?? Date.now()) - breakStartedAt) / 1000),
+      );
       this.breakEl.setText(`☕ ${formatDuration(breakSeconds)}`);
     }
 
