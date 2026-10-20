@@ -178,3 +178,14 @@ the claims and plugin fixes. Release
 notes describe the known host quit behavior explicitly; the release does not
 claim to fix Obsidian's shutdown lifecycle. Native mouse clicks remain outside
 the automated checks.
+
+### Publication result
+
+Commit `732618f0927836d6a83c5ddacfa045ef7d5ade67` and tag `0.8.1` were pushed.
+GitHub Actions run `39432551593` passed all checks and created the release.
+The published body matches `docs/releases/0.8.1.md` exactly. Downloaded
+main.js, manifest.json and styles.css match the local build and installed
+Raincoat files byte for byte. Plugin reload reports 0.8.1; data.json was
+preserved during installation. No synthetic session or timer remains.
+
+Release: https://github.com/n23eos/obsidian-always-on-top-tasks/releases/tag/0.8.1
