@@ -83,3 +83,27 @@ installed production plugin. No active user task or break existed at test start.
 
 Raw local evidence is in ignored docs/screenshots/.tmp/full-restart-result.json.
 Release description: [0.8.0](../../docs/releases/0.8.0.md).
+
+## Published release
+
+- Implementation commit: `ef587490d7228ecc5524f90709464beca46449a9`.
+- Tag `0.8.0` and implementation commit confirmed on origin.
+- [Release 0.8.0](https://github.com/n23eos/obsidian-always-on-top-tasks/releases/tag/0.8.0)
+  is public, not a draft or prerelease. Its English description matches
+  docs/releases/0.8.0.md.
+- [GitHub Actions run](https://github.com/n23eos/obsidian-always-on-top-tasks/actions/runs/39427322524)
+  passed install, types, lint, all tests, build, tag/version verification and
+  build provenance attestation.
+- The release contains exactly main.js, manifest.json and styles.css. Downloaded
+  bytes match the local production build for all three files.
+- Published assets installed in Raincoat after a fresh local backup. Runtime
+  reports version 0.8.0; no task or break timer remains from testing. data.json
+  was preserved during installation.
+
+Asset SHA-256 values:
+
+| Asset | SHA-256 |
+| --- | --- |
+| main.js | 1b8077407f7ed61b1687c7d5591305f9378ff033bd5cb085ddfae324eff7fed1 |
+| manifest.json | 24e5939fc48f40393762886c59205f06bd35a20d63bd82860e5863346a46280a |
+| styles.css | 38a162aa10b4aa20338507f35dd8a10cfa532c1048a3ca655df66c24088f4a44 |
