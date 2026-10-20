@@ -1,6 +1,8 @@
 // Настройки плагина + бегущий таймер (переживает перезапуск Obsidian).
 
 import type { RunningTimer } from "./core/timer";
+import type { BreakCommitJournal, PersistedBreak } from "./core/breakLine";
+import { migrateFocusSession, type FocusSession } from "./core/focusSession";
 import type { OverlayEdge, ElectronRect } from "./electron";
 
 /** Край экрана или "free" — окно остаётся там, куда его перетащил пользователь. */
@@ -38,6 +40,14 @@ export interface PluginSettings {
   nonFocusable: boolean;
   /** Единственный бегущий таймер (null = не бежит). */
   runningTimer: RunningTimer | null;
+  /** Активный или ожидающий безопасной записи перерыв. */
+  breakTimer: PersistedBreak | null;
+  /** Текущая или последняя завершённая фокус-сессия. */
+  focusSession: FocusSession | null;
+  /** Предпочтительное число задач при создании фокус-сессии. */
+  focusTaskGoal: number;
+  /** Показывать только выбранные задачи во время фокус-сессии. */
+  focusOnly: boolean;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -58,12 +68,21 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   clickThrough: false,
   nonFocusable: false,
   runningTimer: null,
+  breakTimer: null,
+  focusSession: null,
+  focusTaskGoal: 3,
+  focusOnly: true,
 };
 
 export const OVERLAY_MARGIN = 12;
 
 /** Ключи, которые кнопка "Reset to defaults" не трогает. */
-const PRESERVED_ON_RESET: readonly (keyof PluginSettings)[] = ["focusNotePath", "runningTimer"];
+const PRESERVED_ON_RESET: readonly (keyof PluginSettings)[] = [
+  "focusNotePath",
+  "runningTimer",
+  "breakTimer",
+  "focusSession",
+];
 
 /**
  * data.json → настройки. Терпит мусор и старые версии: до 0.7.0 край экрана
@@ -72,7 +91,18 @@ const PRESERVED_ON_RESET: readonly (keyof PluginSettings)[] = ["focusNotePath", 
 export function migrateSettings(stored: unknown): PluginSettings {
   if (!stored || typeof stored !== "object") return { ...DEFAULT_SETTINGS };
   const { edge, ...rest } = stored as Partial<PluginSettings> & { edge?: OverlayEdge };
-  const merged: PluginSettings = { ...DEFAULT_SETTINGS, ...rest };
+  const merged: PluginSettings = {
+    ...DEFAULT_SETTINGS,
+    ...rest,
+    breakTimer: migrateBreakTimer(rest.breakTimer),
+    focusSession: migrateFocusSession(rest.focusSession),
+    focusTaskGoal: isFocusTaskGoal(rest.focusTaskGoal)
+      ? rest.focusTaskGoal
+      : DEFAULT_SETTINGS.focusTaskGoal,
+    focusOnly: typeof rest.focusOnly === "boolean"
+      ? rest.focusOnly
+      : DEFAULT_SETTINGS.focusOnly,
+  };
   if (!("dockMode" in rest) && (edge === "left" || edge === "right")) {
     return { ...merged, dockMode: edge };
   }
@@ -85,4 +115,63 @@ export function resetToDefaults(current: PluginSettings): PluginSettings {
     PRESERVED_ON_RESET.map((key) => [key, current[key]]),
   ) as Partial<PluginSettings>;
   return { ...DEFAULT_SETTINGS, ...preserved };
+}
+
+function isFocusTaskGoal(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 20;
+}
+
+function migrateBreakTimer(value: unknown): PersistedBreak | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<PersistedBreak>;
+  if (typeof raw.filePath !== "string" || raw.filePath.trim() === "") return null;
+  if (!isNonNegativeInteger(raw.startedAt)) return null;
+  if (raw.stoppedAt === undefined) {
+    if (raw.commit !== undefined) return null;
+    return { filePath: raw.filePath, startedAt: raw.startedAt };
+  }
+  if (!isNonNegativeInteger(raw.stoppedAt) || raw.stoppedAt < raw.startedAt) return null;
+  if (raw.commit === undefined) {
+    return {
+      filePath: raw.filePath,
+      startedAt: raw.startedAt,
+      stoppedAt: raw.stoppedAt,
+    };
+  }
+  const seconds = Math.floor((raw.stoppedAt - raw.startedAt) / 1000);
+  const commit = migrateBreakCommit(raw.commit, seconds);
+  if (!commit) return null;
+  return {
+    filePath: raw.filePath,
+    startedAt: raw.startedAt,
+    stoppedAt: raw.stoppedAt,
+    commit,
+  };
+}
+
+function migrateBreakCommit(value: unknown, seconds: number): BreakCommitJournal | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<BreakCommitJournal>;
+  if (!isNonNegativeInteger(raw.afterTotalSeconds)) return null;
+  if (raw.beforeTotalSeconds === null) {
+    if (raw.lineNo !== null || raw.afterTotalSeconds !== seconds) return null;
+    return {
+      lineNo: null,
+      beforeTotalSeconds: null,
+      afterTotalSeconds: raw.afterTotalSeconds,
+    };
+  }
+  if (!isNonNegativeInteger(raw.beforeTotalSeconds) || !isNonNegativeInteger(raw.lineNo)) {
+    return null;
+  }
+  if (raw.afterTotalSeconds !== raw.beforeTotalSeconds + seconds) return null;
+  return {
+    lineNo: raw.lineNo,
+    beforeTotalSeconds: raw.beforeTotalSeconds,
+    afterTotalSeconds: raw.afterTotalSeconds,
+  };
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0;
 }

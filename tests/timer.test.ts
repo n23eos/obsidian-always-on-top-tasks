@@ -52,6 +52,19 @@ describe("commitSession", () => {
     expect(result.content?.split("\n")[2]).toBe("- [ ] Fix auth bug ⏱️ 0:01:23");
   });
 
+  test("preserves CRLF while writing session time", () => {
+    const content = "# Focus\r\n- [ ] Fix auth bug\r\n";
+    const result = commitSession(
+      content,
+      timerAt(1, "- [ ] Fix auth bug\r", START),
+      START + 5_000,
+    );
+
+    expect(result.kind).toBe("ok");
+    expect(result.newLineText).toBe("- [ ] Fix auth bug ⏱️ 0:00:05\r");
+    expect(result.content).toBe("# Focus\r\n- [ ] Fix auth bug ⏱️ 0:00:05\r\n");
+  });
+
   test("accumulates with existing time", () => {
     const result = commitSession(
       NOTE.join("\n"),

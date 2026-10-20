@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const bundle = await build({
+const buildPreview = () => build({
   entryPoints: [root + "scripts/ui/preview.mjs"],
   bundle: true,
   write: false,
@@ -16,6 +16,7 @@ const bundle = await build({
 const server = createServer(async (req, res) => {
   try {
     if (req.url === "/bundle.js") {
+      const bundle = await buildPreview();
       res.setHeader("Content-Type", "text/javascript");
       res.end(bundle.outputFiles[0].text);
     } else if (req.url === "/styles.css") {

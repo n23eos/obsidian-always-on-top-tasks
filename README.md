@@ -80,9 +80,44 @@ text, and the accumulated time at the end.
 Statuses: ⬜ not started · 🔄 in progress · ⏸️ paused · 🔜 deferred · ⛔ blocked ·
 ✅ done · ❗ important · 🔴 🟠 🟡 🟢 🔵 🟣 colour labels.
 
-The plugin stores nothing else in the note — no ids, no metadata blocks. Its
-`data.json` holds only your settings and the one running timer, so that a timer
-survives an Obsidian restart.
+The plugin stores no task IDs or session metadata blocks in the note.
+Its `data.json` holds settings, the running task timer and the current focus
+session or its latest summary, so these survive an Obsidian restart.
+
+## Focus sessions
+
+Open the overlay and press **Start 3-task session** to work through a small
+selection of open tasks. Use the **1 / 3 / 5** presets, enter a goal from 1 to 20,
+or press **Choose tasks** to select individual tasks before starting.
+The note determines their order; tasks already completed do not count.
+
+- **One task at a time.** The current selected task stays visible. **Up next**
+  shows the remaining queue; **Show all tasks** returns to the full note.
+- **A clear finish line.** Progress counts completed selected tasks. Unchecking
+  one subtracts it again. Adding unrelated tasks does not change the goal.
+- **Pause and return.** Pause freezes session time and saves the task timer.
+  Resume continues the selected work. Paused sessions survive restarting Obsidian.
+- **Finish deliberately.** Reaching the goal freezes session time and shows a finish action. Finishing
+  early saves a summary and leaves unfinished tasks in the note.
+
+Starting a session starts its first task timer. Completing a task reveals the
+next one; start that timer when ready. Session time includes transitions between
+tasks and excludes pauses. It is separate from recorded per-task work time.
+The command **Pause or resume focus session** can be assigned a hotkey.
+
+Task matching uses unique titles without adding IDs to Markdown. Give duplicate
+tasks distinct names to select them. Inline edits in the overlay preserve the
+session link; external title changes may require restoring the title or finishing
+early. Missing or ambiguous tasks do not count as completed. Markdown examples
+inside fenced code and frontmatter are excluded.
+
+Only one focus session is active at a time. Opening another note shows a return
+action. A failed timer save keeps the session recoverable, with **Retry save**.
+The coffee-break stopwatch also survives restarting Obsidian. Time while the app
+is closed counts toward an active break. Ending a break freezes its duration
+before saving; a failed save remains available through **Retry break save**, even
+after restart. Recovery checks the existing coffee total to avoid adding the same
+break twice. If that total was changed externally, restore it before retrying.
 
 ## Installation
 
@@ -120,7 +155,7 @@ None of the commands ships with a default hotkey; bind your own in
 
 ## Settings
 
-Grouped into four sections. On Obsidian 1.13 and later every setting is also
+Grouped into five sections. On Obsidian 1.13 and later every setting is also
 found by the settings search; older versions get the same tab drawn the classic
 way, so the plugin keeps working from Obsidian 1.4.
 
@@ -130,6 +165,8 @@ the place is remembered), width of the docked overlay, opacity.
 
 **Timer and breaks** — the running timer in the main window's status bar,
 breaks and the reminder threshold.
+
+**Focus sessions**: default task goal and whether to show only the current task.
 
 **Appearance** — font size, hide completed tasks, tasks only (skip the prose
 between tasks), the emoji status button, your own status emoji palette, the
@@ -186,6 +223,7 @@ npm run lint    # typescript-eslint + eslint-plugin-obsidianmd, the rules Obsidi
 
 ```
 src/core/       pure logic, no Obsidian imports (fully unit-tested)
+  focusSession.ts task selection, matching, duration and stored-session validation
   taskLine.ts   task line parser and serializer (emoji palette, elapsed time)
   timer.ts      timer sessions, line addressing (line number + exact text)
   breakLine.ts  the "☕ H:MM:SS" total-break line
@@ -194,6 +232,7 @@ src/SettingDefinitions.ts  the settings described once, as Obsidian 1.13 definit
 src/SettingsTab.ts  getSettingDefinitions() for 1.13+, a display() adapter for older versions
 src/electron.ts BrowserWindow access: always-on-top, geometry (all guarded)
 src/TimerService.ts  the single running timer, atomic writes via vault.process
+src/FocusSessionService.ts  session lifecycle and safe coordination with task timers
 src/StatusBarTimer.ts  the running timer in the main window's status bar
 src/overlay/    popout window controller and the overlay view
 macos/          the standalone SimpleFocus app, unrelated to the plugin build

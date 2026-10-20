@@ -6,6 +6,8 @@ import { StatusBarTimer } from "./StatusBarTimer";
 import { TasksForFocusSettingsTab } from "./SettingsTab";
 import { DEFAULT_SETTINGS, migrateSettings, type PluginSettings } from "./settings";
 import { notify } from "./notify";
+import { FocusSessionService } from "./FocusSessionService";
+import { SettingsPersistence } from "./SettingsPersistence";
 
 const STATUS_BAR_TICK_MS = 1000;
 
@@ -13,8 +15,14 @@ export default class TasksForFocusPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
   overlay: OverlayController = new OverlayController(this);
   timers: TimerService = new TimerService(this);
+  focusSessions: FocusSessionService = new FocusSessionService(this);
   statusBar: StatusBarTimer = new StatusBarTimer(this);
   private ribbonEl: HTMLElement | null = null;
+  private persistence = new SettingsPersistence({
+    get: () => this.settings,
+    set: (settings) => { this.settings = settings; },
+    save: (settings) => this.saveData(settings),
+  });
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -29,6 +37,22 @@ export default class TasksForFocusPlugin extends Plugin {
         void this.handleRename(file, oldPath);
       }),
     );
+    this.registerEvent(this.app.vault.on("modify", (file) => {
+      if (file instanceof TFile && file.path === this.focusSessions.session?.filePath) {
+        void this.syncFocusSession(file);
+      }
+    }));
+    this.registerEvent(this.app.vault.on("delete", (file) => {
+      if (file.path === this.focusSessions.session?.filePath) {
+        void this.focusSessions.refresh(file.path).then(() => this.refreshOverlayViews())
+          .catch(() => notify("could not update the focus session. Please retry."));
+      }
+    }));
+    this.app.workspace.onLayoutReady(() => {
+      const path = this.focusSessions.session?.filePath;
+      const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
+      if (file instanceof TFile) void this.syncFocusSession(file);
+    });
 
     this.addCommand({
       id: "toggle-focus-overlay",
@@ -70,6 +94,20 @@ export default class TasksForFocusPlugin extends Plugin {
       name: "Toggle completed tasks in the overlay",
       callback: () => void this.updateSettings({ hideCompleted: !this.settings.hideCompleted }),
     });
+    this.addCommand({
+      id: "toggle-session-pause",
+      name: "Pause or resume focus session",
+      checkCallback: (checking) => {
+        const session = this.focusSessions.session;
+        if (!session || session.status === "finished") return false;
+        if (!checking) {
+          const action = session.status === "paused" ? this.focusSessions.resume() : this.focusSessions.pause();
+          void action.then(() => this.refreshOverlayViews())
+            .catch((error: unknown) => notify(error instanceof Error ? error.message : "could not change the session."));
+        }
+        return true;
+      },
+    });
   }
 
   onunload(): void {
@@ -103,11 +141,22 @@ export default class TasksForFocusPlugin extends Plugin {
   private async handleRename(file: TAbstractFile, oldPath: string): Promise<void> {
     try {
       await this.timers.renamePaths(oldPath, file.path, file instanceof TFolder);
+      await this.focusSessions.renamePaths(oldPath, file.path, file instanceof TFolder);
     } catch (error) {
       console.error("Always-on-Top Tasks: failed to preserve paths after rename", error);
       notify("could not preserve timer paths after the rename. Check the selected note before saving time.", 15000);
     }
     this.refreshOverlayViews();
+  }
+
+  private async syncFocusSession(file: TFile): Promise<void> {
+    try {
+      await this.focusSessions.refresh(file.path);
+      this.refreshOverlayViews();
+    } catch (error) {
+      console.error("Always-on-Top Tasks: could not update focus session", error);
+      notify("could not update session progress. Reopen the overlay to retry.");
+    }
   }
 
   private async openCurrentNote(): Promise<void> {
@@ -152,13 +201,12 @@ export default class TasksForFocusPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    await this.persistence.patch({});
   }
 
   /** Только сохранить (таймер, положение окна) — без перерисовки. */
   async patchSettings(patch: Partial<PluginSettings>): Promise<void> {
-    this.settings = { ...this.settings, ...patch };
-    await this.saveSettings();
+    await this.persistence.patch(patch);
   }
 
   /** Сохранить и применить везде: окно, вью, статус-бар, ribbon. */

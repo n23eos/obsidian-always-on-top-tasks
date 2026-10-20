@@ -69,6 +69,22 @@ export function buildSettingDefinitions(ctx: DefinitionContext): SettingDefiniti
     },
     {
       type: "group",
+      heading: "Focus sessions",
+      items: [
+        {
+          name: "Default task goal",
+          desc: "Select this many open tasks when planning a session. You can change the selection in the overlay.",
+          control: { type: "slider", key: "focusTaskGoal", min: 1, max: 20, step: 1, displayFormat: (value) => `${value} tasks` },
+        },
+        {
+          name: "Only the current task",
+          desc: "During a session, hide unrelated work and keep one selected task visible. Show all tasks remains available.",
+          control: { type: "toggle", key: "focusOnly" },
+        },
+      ],
+    },
+    {
+      type: "group",
       heading: "Timer and breaks",
       items: [
         {
@@ -164,7 +180,7 @@ export function buildSettingDefinitions(ctx: DefinitionContext): SettingDefiniti
         },
         {
           name: "Reset to defaults",
-          desc: "Restores every setting above. The pinned note and a running timer are kept.",
+          desc: "Restores every setting above. The pinned note, running timer and focus session are kept.",
           action: () => ctx.resetToDefaults(),
         },
       ],

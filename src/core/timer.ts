@@ -61,8 +61,12 @@ export function commitSession(
   const isLongSession = sessionSeconds > LONG_SESSION_THRESHOLD_SECONDS;
 
   const lines = content.split("\n");
-  const previousSeconds = parseTaskLine(timer.lineText)?.elapsedSeconds ?? 0;
-  const expectedLineText = withElapsed(timer.lineText, previousSeconds + sessionSeconds);
+  const timerBody = withoutCarriageReturn(timer.lineText);
+  const previousSeconds = parseTaskLine(timerBody)?.elapsedSeconds ?? 0;
+  const expectedLineText = preserveCarriageReturn(
+    timer.lineText,
+    withElapsed(timerBody, previousSeconds + sessionSeconds),
+  );
   if (recovery && expectedLineText !== timer.lineText) {
     if (lines[timer.lineNo] === expectedLineText) {
       return {
@@ -96,8 +100,12 @@ export function commitSession(
     return { kind: exists ? "ambiguous" : "not-found", sessionSeconds, isLongSession };
   }
 
-  const currentSeconds = parseTaskLine(lines[lineNo])?.elapsedSeconds ?? 0;
-  const newLineText = withElapsed(lines[lineNo], currentSeconds + sessionSeconds);
+  const currentBody = withoutCarriageReturn(lines[lineNo]);
+  const currentSeconds = parseTaskLine(currentBody)?.elapsedSeconds ?? 0;
+  const newLineText = preserveCarriageReturn(
+    lines[lineNo],
+    withElapsed(currentBody, currentSeconds + sessionSeconds),
+  );
   const newLines = lines.map((line, index) => (index === lineNo ? newLineText : line));
 
   return {
@@ -108,4 +116,12 @@ export function commitSession(
     sessionSeconds,
     isLongSession,
   };
+}
+
+function withoutCarriageReturn(line: string): string {
+  return line.endsWith("\r") ? line.slice(0, -1) : line;
+}
+
+function preserveCarriageReturn(original: string, updated: string): string {
+  return original.endsWith("\r") ? `${updated}\r` : updated;
 }

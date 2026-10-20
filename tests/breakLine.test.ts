@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { addBreakTime, parseBreakLine } from "../src/core/breakLine";
+import {
+  addBreakTime,
+  commitBreakTime,
+  parseBreakLine,
+  prepareBreakCommit,
+} from "../src/core/breakLine";
 
 describe("parseBreakLine", () => {
   test("parses a break total line", () => {
@@ -39,5 +44,38 @@ describe("addBreakTime", () => {
 
   test("empty note gets just the break line", () => {
     expect(addBreakTime("", 90)).toBe("☕ 0:01:30\n");
+  });
+});
+
+describe("break commit recovery", () => {
+  test("recognizes the persisted post-total without adding the break twice", () => {
+    const journal = prepareBreakCommit("# Focus\n☕ 0:05:00\n", 10);
+
+    expect(journal).toEqual({
+      lineNo: 1,
+      beforeTotalSeconds: 300,
+      afterTotalSeconds: 310,
+    });
+    expect(commitBreakTime("# Focus\n☕ 0:05:10\n", journal!)).toEqual({
+      kind: "already-committed",
+      content: "# Focus\n☕ 0:05:10\n",
+    });
+  });
+
+  test("refuses an externally changed total while recovery is pending", () => {
+    const journal = {
+      lineNo: 1,
+      beforeTotalSeconds: 300,
+      afterTotalSeconds: 310,
+    };
+
+    expect(commitBreakTime("# Focus\n☕ 0:06:00\n", journal)).toEqual({
+      kind: "ambiguous",
+      content: "# Focus\n☕ 0:06:00\n",
+    });
+  });
+
+  test("treats duplicate coffee totals as ambiguous before the first write", () => {
+    expect(prepareBreakCommit("☕ 0:01:00\n☕ 0:02:00\n", 10)).toBeNull();
   });
 });

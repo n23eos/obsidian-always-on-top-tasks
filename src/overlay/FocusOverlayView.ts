@@ -23,6 +23,8 @@ import {
 } from "../core/taskLine";
 import { locateLine } from "../core/timer";
 import { notify } from "../notify";
+import { scanFocusTasks } from "../core/focusSession";
+import { FocusSessionPanel } from "./FocusSessionPanel";
 
 export const FOCUS_OVERLAY_VIEW_TYPE = "tfa-focus-overlay";
 
@@ -34,7 +36,7 @@ const REMOVE_GLYPH = "○";
 function safe(promise: Promise<unknown>): void {
   promise.catch((error) => {
     console.error("Always-on-Top Tasks", error);
-    notify("the action failed — see the developer console for details.");
+    notify(error instanceof Error ? error.message : "the action failed. Please retry.");
   });
 }
 
@@ -92,9 +94,16 @@ export class FocusOverlayView extends ItemView {
   private topEl: HTMLElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private closed = false;
+  private readonly sessionPanel: FocusSessionPanel;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: TasksForFocusPlugin) {
     super(leaf);
+    this.sessionPanel = new FocusSessionPanel(plugin, {
+      render: () => safe(this.render()),
+      openNote: async (filePath) => {
+        await this.setState({ filePath }, {} as ViewStateResult);
+      },
+    });
   }
 
   getViewType(): string {
@@ -202,14 +211,29 @@ export class FocusOverlayView extends ItemView {
         cls: "tfa-empty",
         text: "No note selected, or the note was deleted.",
       });
+      const session = this.plugin.focusSessions.session;
+      if (session) {
+        await this.plugin.focusSessions.refresh(session.filePath);
+        if (version !== this.renderVersion) return;
+        this.sessionPanel.render(this.contentEl, session.filePath, []);
+      }
       return;
     }
 
-    const content = await this.plugin.app.vault.cachedRead(this.file);
+    await this.plugin.focusSessions.refresh(this.file.path);
+    if (version !== this.renderVersion) return;
+    const content = await this.plugin.app.vault.read(this.file);
     if (version !== this.renderVersion) return;
 
     const { statusEmojis, fontSize, hideCompleted, tasksOnly } = this.plugin.settings;
     this.palette = parseStatusPalette(statusEmojis);
+    const candidates = scanFocusTasks(content, this.palette);
+    const candidateByLine = new Map(candidates.map((task) => [task.lineNo, task]));
+    const session = this.plugin.focusSessions.session;
+    const localSession = session?.filePath === this.file.path && session.status !== "finished" ? session : null;
+    const focusedTask = localSession ? this.sessionPanel.currentTask(localSession) : undefined;
+    const focusOnly = localSession !== null && this.plugin.settings.focusOnly;
+    this.contentEl.classList.toggle("tfa-focus-mode", focusOnly);
     // Размер шрифта — CSS-переменной, чтобы темы и сниппеты могли её перебить.
     this.contentEl.style.setProperty("--tfa-font-size", `${fontSize}px`);
 
@@ -224,6 +248,7 @@ export class FocusOverlayView extends ItemView {
       : null;
 
     const built = createDiv();
+    this.sessionPanel.render(built, this.file.path, candidates);
     const runningRef: RunningRef = {
       timeEl: null,
       baseSeconds: 0,
@@ -244,18 +269,32 @@ export class FocusOverlayView extends ItemView {
     };
 
     for (let i = 0; i < lines.length; i++) {
-      const parsed = parseTaskLine(lines[i], this.palette);
+      const candidate = candidateByLine.get(offset + i);
+      const parsed = candidate ? parseTaskLine(lines[i].replace(/\r$/, ""), this.palette) : null;
       if (!parsed) {
-        if (!tasksOnly) mdBuffer.push(lines[i]);
+        if (!tasksOnly && !focusOnly) mdBuffer.push(lines[i]);
         continue;
       }
       await flushMarkdown();
       totalSeconds += parsed.elapsedSeconds ?? 0;
       taskCount += 1;
       if (parsed.checked) doneCount += 1;
+      if (focusOnly && offset + i !== focusedTask?.lineNo) continue;
       if (parsed.checked && hideCompleted) continue; // посчитали, но не показываем
       visibleCount += 1;
       this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef, offset + i === activeLineNo);
+      if (this.sessionPanel.choosing && candidate && !candidate.checked) {
+        const row = built.lastElementChild as HTMLElement;
+        row.classList.toggle("tfa-session-selected", this.sessionPanel.isSelected(candidate));
+        const choose = row.createEl("button", {
+          cls: "tfa-session-pick",
+          text: this.sessionPanel.isSelected(candidate) ? "Selected" : "Add to session",
+          attr: { "aria-label": `Select for session: ${candidate.text}`, "aria-pressed": String(this.sessionPanel.isSelected(candidate)) },
+        });
+        choose.disabled = !candidate.eligible;
+        if (!candidate.eligible) choose.title = "Rename duplicate tasks to select them";
+        choose.addEventListener("click", () => this.sessionPanel.toggle(candidate));
+      }
     }
     await flushMarkdown();
 
@@ -263,7 +302,7 @@ export class FocusOverlayView extends ItemView {
 
     if (taskCount === 0) {
       built.createDiv({ cls: "tfa-empty", text: "No tasks yet. Add one with the button below." });
-    } else if (visibleCount === 0) {
+    } else if (visibleCount === 0 && !focusOnly) {
       built.createDiv({ cls: "tfa-empty", text: "All tasks are done." });
     }
 
@@ -271,8 +310,12 @@ export class FocusOverlayView extends ItemView {
     const top = createDiv({ cls: "tfa-top" });
     built.insertBefore(top, built.firstChild);
     this.renderHeader(top, doneCount, taskCount);
-    const pinnedTimeEl = this.renderPinnedHeader(top, runningRef);
+    const pinnedTimeEl = focusOnly ? null : this.renderPinnedHeader(top, runningRef);
 
+    if (focusOnly) {
+      const controls = built.querySelector(".tfa-session-controls");
+      if (controls) built.appendChild(controls);
+    }
     const footer = built.createDiv({ cls: "tfa-add" });
     this.renderAddRowButton(footer);
     if (taskCount > 0) {
@@ -284,20 +327,32 @@ export class FocusOverlayView extends ItemView {
         : null;
 
     let breakButton: HTMLElement | null = null;
-    if (this.plugin.settings.breaksEnabled) {
+    if (this.plugin.settings.breaksEnabled || this.plugin.timers.breakStartedAt !== null) {
       const onBreak = this.plugin.timers.breakStartedAt !== null;
+      const pendingBreak = this.plugin.timers.breakStoppedAt !== null;
       breakButton = footer.createEl("button", {
         cls: `tfa-btn tfa-break${onBreak ? " tfa-break-on" : ""}`,
         text: "☕",
-        attr: { "aria-label": onBreak ? "End break" : "Start break" },
+        attr: { "aria-label": pendingBreak ? "Retry break save" : onBreak ? "End break" : "Start break" },
       });
       breakButton.addEventListener("click", () => safe(this.onToggleBreak()));
     }
 
     const scrollTop = this.contentEl.scrollTop;
+    const activeElement = this.contentEl.ownerDocument.activeElement;
+    const hadFocus = activeElement !== null && this.contentEl.contains(activeElement);
+    const focusLabel = hadFocus ? activeElement.getAttribute("aria-label") : null;
+    const focusText = hadFocus ? activeElement.textContent : null;
     this.contentEl.empty();
     while (built.firstChild) this.contentEl.appendChild(built.firstChild);
     this.contentEl.scrollTop = scrollTop;
+    if (hadFocus && this.addDraft === null) {
+      const controls = Array.from(this.contentEl.querySelectorAll<HTMLElement>("button, input"));
+      const replacement = controls.find((el) =>
+        focusLabel ? el.getAttribute("aria-label") === focusLabel : el.textContent === focusText,
+      ) ?? this.contentEl.querySelector<HTMLElement>(".tfa-session-primary, .tfa-check");
+      replacement?.focus({ preventScroll: true });
+    }
     this.runningLineNo = activeLineNo;
     this.topEl = top;
     this.pinnedEl = top.querySelector(".tfa-pinned");
@@ -399,6 +454,8 @@ export class FocusOverlayView extends ItemView {
     if (this.plugin.timers.breakStartedAt !== null) {
       await this.plugin.timers.endBreak(); // пишет ☕-строку в заметку
     } else {
+      const session = this.plugin.focusSessions.session;
+      if (session && session.status !== "finished") await this.plugin.focusSessions.pause();
       await this.plugin.timers.startBreak(this.file.path); // коммитит бегущий таймер
     }
     this.scheduleRender();
@@ -565,6 +622,14 @@ export class FocusOverlayView extends ItemView {
       if (this.isRunningTask(lineNo, rawLine)) {
         await this.plugin.timers.stop();
       } else {
+        const session = this.plugin.focusSessions.session;
+        if (session && session.status !== "finished") {
+          const title = parseTaskLine(rawLine.replace(/\r$/, ""), this.palette)?.text.trim();
+          const selected = session.filePath === this.file.path &&
+            session.tasks.some((task) => task.text === title && !task.done && !task.missing);
+          if (!selected && session.status === "active") await this.plugin.focusSessions.pause();
+          else if (selected && session.status === "paused") await this.plugin.focusSessions.resume();
+        }
         await this.plugin.timers.start(this.file.path, lineNo, rawLine);
       }
     } finally {
@@ -675,6 +740,10 @@ export class FocusOverlayView extends ItemView {
     if (!this.file) return;
     const timerAtStart = this.plugin.timers.running;
     const editsRunningTask = this.isRunningTask(lineNo, expectedText);
+    if (editsRunningTask && timerAtStart?.stoppedAt !== undefined) {
+      notify("save the pending timer before editing this task.");
+      return;
+    }
     let applied = false;
     let newLineText = "";
     let newIndex = -1;
@@ -684,7 +753,8 @@ export class FocusOverlayView extends ItemView {
       if (index === null) return content; // строка изменилась под нами — не портим
       applied = true;
       newIndex = index;
-      newLineText = transform(lines[index]);
+      const cr = lines[index].endsWith("\r") ? "\r" : "";
+      newLineText = transform(lines[index].replace(/\r$/, "")) + cr;
       return lines.map((line, i) => (i === index ? newLineText : line)).join("\n");
     });
     if (!applied) {
@@ -692,26 +762,21 @@ export class FocusOverlayView extends ItemView {
       this.scheduleRender();
       return;
     }
-
     // Если переписали строку бегущего таймера (текст, эмодзи, чекбокс) —
     // перепривязываем якорь, иначе стоп таймера её не найдёт.
-    const timer = this.plugin.settings.runningTimer;
     if (
-      timer &&
-      timer === timerAtStart && editsRunningTask &&
-      timer.filePath === this.file.path &&
-      timer.lineText === expectedText &&
+      timerAtStart && editsRunningTask &&
       newLineText !== expectedText
     ) {
-      await this.plugin.patchSettings({
-        runningTimer: { ...timer, lineNo: newIndex, lineText: newLineText },
-      });
+      await this.plugin.timers.reanchor(this.file.path, timerAtStart.lineNo, expectedText, newIndex, newLineText);
     }
+    await this.plugin.focusSessions.reanchor(this.file.path, lineNo, expectedText, newLineText);
   }
 
   // ---------- тик ----------
 
   private tickRunningTimer(): void {
+    this.sessionPanel.tick();
     // Секундомер перерыва (идёт и без бегущего таймера задачи).
     const breakStartedAt = this.plugin.timers.breakStartedAt;
     if (this.breakEl && breakStartedAt !== null) {
@@ -720,7 +785,9 @@ export class FocusOverlayView extends ItemView {
         0,
         Math.floor(((breakStoppedAt ?? Date.now()) - breakStartedAt) / 1000),
       );
-      this.breakEl.setText(`☕ ${formatDuration(breakSeconds)}`);
+      const pending = breakStoppedAt !== null;
+      this.breakEl.setText(`☕ ${formatDuration(breakSeconds)}${pending ? " · Retry save" : ""}`);
+      this.breakEl.setAttribute("aria-label", pending ? "Retry break save" : "End break");
     }
 
     const timer = this.plugin.settings.runningTimer;

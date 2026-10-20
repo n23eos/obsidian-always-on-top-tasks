@@ -1,5 +1,5 @@
 // Bump the plugin version everywhere it must stay in sync:
-//   manifest.json, package.json, versions.json
+//   manifest.json, package.json, package-lock.json, versions.json
 // Usage: npm run bump 0.5.0
 import { readFileSync, writeFileSync } from "fs";
 import { resolve, dirname, join } from "path";
@@ -24,6 +24,11 @@ const { minAppVersion } = JSON.parse(readFileSync(manifestPath, "utf8"));
 
 updateJson(manifestPath, (data) => ({ ...data, version }));
 updateJson(join(repoRoot, "package.json"), (data) => ({ ...data, version }));
+updateJson(join(repoRoot, "package-lock.json"), (data) => ({
+  ...data,
+  version,
+  packages: { ...data.packages, "": { ...data.packages[""], version } },
+}));
 // versions.json tells Obsidian which plugin version an older app may install.
 updateJson(join(repoRoot, "versions.json"), (data) => ({ ...data, [version]: minAppVersion }));
 
