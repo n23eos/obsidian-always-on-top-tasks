@@ -79,3 +79,13 @@ windows, unsupported host versions or later Quit observers disable the workaroun
 Those configurations may still require a second normal Quit. Native mouse clicks
 were not automated. Exact state preservation and full process exit/relaunch were
 verified through the actual running application.
+
+## Release 0.8.2, 2026-10-21
+
+Commit d83570f and tag 0.8.2 were pushed to origin. All 187 tests, type checking,
+lint and production build passed again. GitHub Actions run 39504060989 passed.
+The published English release body matches docs/releases/0.8.2.md and explicitly
+limits safe quit to one vault window and one plugin focus window. All three
+downloaded release assets match the local production build byte for byte.
+Native restart evidence above is from 2026-10-20; no new native restart was needed
+for this version-only publication. The installed local build was not changed.
