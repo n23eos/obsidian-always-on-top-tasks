@@ -97,3 +97,13 @@ The pause must not increase session time; unfinished work stays unchecked.
 - A session clock measures active session wall time, including transitions between tasks.
 - External task-title changes can require restoring the title or ending early.
 - Native window behavior remains platform dependent; no release or external publication is requested.
+
+## Native verification follow-up, 2026-10-20
+
+- Restored overlay windows are adopted by the controller, including late layout
+  restoration. Toggle closes the existing window without creating a duplicate.
+- Unloading the plugin cancels pending pin retries.
+- Explicit pause from the panel or command starts a break when enabled, after
+  the running task is saved. Internal pauses do not automatically start breaks.
+- Verify selected-task progress, pause, completion and active/paused state across
+  complete Obsidian process restarts using a disposable note.

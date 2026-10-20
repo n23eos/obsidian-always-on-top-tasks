@@ -41,3 +41,15 @@ Independent check: pause/reload/resume and failed-save/finish scenarios.
 Dependencies: foundation -> US1 -> US2/US3 -> verification.
 Parallel work: domain/service/settings and UI/style/main have separate owners.
 MVP: US1; this task delivers all three stories. No publication step.
+
+## Native verification follow-up, 2026-10-20
+
+- [x] T015 Verify selected-task progress, undo and summary in real Obsidian.
+- [x] T016 Verify active and paused sessions across full process restarts.
+- [x] T017 Unify explicit pause behavior and add failure/disabled-break regressions.
+- [x] T018 Adopt restored windows, cancel stale pin retries and verify locally.
+- [x] T019 Run final checks, review, install and document native evidence/limits.
+
+- [x] T020 Diagnose canceled quit using a normal Obsidian popout as control.
+- [x] T021 Verify exact active/paused state and open pinned overlay after full exit.
+- [x] T022 Prepare 0.8.1 with explicit English notes about the host quit limitation.

@@ -21,6 +21,7 @@ interface TimerDouble {
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
   endBreak: ReturnType<typeof vi.fn>;
+  startBreak: ReturnType<typeof vi.fn>;
   reanchor: ReturnType<typeof vi.fn>;
 }
 
@@ -66,6 +67,7 @@ function createHarness(options: {
       timers.running = null;
       if (options.contentAfterStop !== undefined) content = options.contentAfterStop;
     }),
+    startBreak: vi.fn(async () => { timers.breakStartedAt = Date.now(); }),
     endBreak: vi.fn(async () => {
       if (options.endBreak) return options.endBreak(timers);
       timers.breakStartedAt = null;
@@ -200,6 +202,40 @@ describe("FocusSessionService", () => {
       elapsedMs: 10_000,
       activeSince: null,
     });
+  });
+
+  test("explicit pause starts a break only after saving the running task", async () => {
+    const harness = createHarness({
+      session: activeSession(),
+      running: { filePath: "focus.md", lineNo: 1, lineText: "- [ ] First", startedAt: START },
+    });
+    harness.plugin.settings.breaksEnabled = true;
+    harness.timers.startBreak.mockImplementation(async () => {
+      expect(harness.service.session?.status).toBe("paused");
+      expect(harness.timers.running).toBeNull();
+    });
+    await harness.service.pause(true);
+    expect(harness.timers.startBreak).toHaveBeenCalledWith("focus.md");
+  });
+
+  test("explicit pause respects disabled breaks and internal pause does not start one", async () => {
+    const harness = createHarness({ session: activeSession() });
+    harness.plugin.settings.breaksEnabled = false;
+    await harness.service.pause(true);
+    harness.plugin.settings.breaksEnabled = true;
+    await harness.service.pause();
+    expect(harness.timers.startBreak).not.toHaveBeenCalled();
+  });
+
+  test("failed task save does not start a break", async () => {
+    const harness = createHarness({
+      session: activeSession(),
+      running: { filePath: "focus.md", lineNo: 1, lineText: "- [ ] First", startedAt: START },
+      stop: async () => { throw new Error("save failed"); },
+    });
+    harness.plugin.settings.breaksEnabled = true;
+    await expect(harness.service.pause(true)).rejects.toThrow("save failed");
+    expect(harness.timers.startBreak).not.toHaveBeenCalled();
   });
 
   test("serializes rapid resume and pause operations", async () => {

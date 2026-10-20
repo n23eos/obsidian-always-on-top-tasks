@@ -299,3 +299,13 @@ If this project was useful to you, feel free to support further development:
 [![ETH](https://img.shields.io/badge/ETH-0x7777...88C4-blue?logo=ethereum&style=flat-square)](https://etherscan.io/address/0x77777da54702AC8789D53fc7cC6201C29a1A88C4)[![Donate](https://img.shields.io/badge/donate-crypto-orange?style=flat-square)](https://etherscan.io/address/0x77777da54702AC8789D53fc7cC6201C29a1A88C4)
 
 [![Buy me a coffee](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/n23eos)
+
+### Quitting Obsidian with a popout on macOS
+
+On Obsidian 1.13.7 with Electron 39.8.3, a Quit request can close the windows
+without terminating the application process. This was reproduced with both a
+standard Obsidian popout and the focus overlay. If Obsidian remains running,
+issue Quit again from its Dock menu. A second normal Quit completed shutdown in
+our tests. The plugin does not force-close windows or bypass Obsidian's save
+handlers. Full restart checks restored the selected session, timers and pinned
+overlay. See [native verification](specs/003-focus-sessions/verification.md).

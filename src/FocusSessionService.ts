@@ -65,7 +65,7 @@ export class FocusSessionService {
     });
   }
 
-  async pause(): Promise<void> {
+  async pause(startBreak = false): Promise<void> {
     const pausedAt = Date.now();
     return this.serialize(async () => {
       const current = this.requireUnfinishedSession();
@@ -83,6 +83,9 @@ export class FocusSessionService {
       await this.syncNow(paused.filePath, content ?? "", pausedAt);
       paused = this.requireUnfinishedSession();
       await this.stopSessionTimer(paused);
+      if (startBreak && this.plugin.settings.breaksEnabled) {
+        await this.plugin.timers.startBreak(paused.filePath);
+      }
     });
   }
 

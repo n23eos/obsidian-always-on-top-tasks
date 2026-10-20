@@ -101,7 +101,7 @@ export default class TasksForFocusPlugin extends Plugin {
         const session = this.focusSessions.session;
         if (!session || session.status === "finished") return false;
         if (!checking) {
-          const action = session.status === "paused" ? this.focusSessions.resume() : this.focusSessions.pause();
+          const action = session.status === "paused" ? this.focusSessions.resume() : this.focusSessions.pause(true);
           void action.then(() => this.refreshOverlayViews())
             .catch((error: unknown) => notify(error instanceof Error ? error.message : "could not change the session."));
         }

@@ -208,10 +208,7 @@ export class FocusSessionPanel {
       if (session.status === "paused") {
         this.button(controls, "Resume focus", () => this.plugin.focusSessions.resume(), true);
       } else {
-        this.button(controls, "Pause", async () => {
-          await this.plugin.focusSessions.pause();
-          if (this.plugin.settings.breaksEnabled) await this.plugin.timers.startBreak(session.filePath);
-        });
+        this.button(controls, "Pause", () => this.plugin.focusSessions.pause(true));
       }
     }
     this.button(controls, reached ? "Finish session" : "Finish early", () => this.plugin.focusSessions.finish(), reached);

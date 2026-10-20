@@ -25,17 +25,22 @@ const REMEMBER_BOUNDS_INTERVAL_MS = 2000;
 export class OverlayController {
   private leaf: WorkspaceLeaf | null = null;
   private browserWindow: ElectronBrowserWindow | null = null;
+  private readonly detachedLeaves = new WeakSet<WorkspaceLeaf>();
+  private pinGeneration = 0;
   /** Поверх всех окон. Кнопка в шапке снимает пин временно, до закрытия. */
   private pinned = true;
 
   constructor(private readonly plugin: TasksForFocusPlugin) {
     this.plugin.app.workspace.onLayoutReady(() => {
+      this.adoptRestoredLeaf();
+
       // Если popout закрыли крестиком окна — забываем его. Регистрируем один раз.
       this.plugin.registerEvent(
         this.plugin.app.workspace.on("layout-change", () => {
           if (this.leaf && !this.leaf.view.containerEl.isConnected) {
             this.forget();
           }
+          this.adoptRestoredLeaf();
         }),
       );
       this.plugin.registerInterval(
@@ -50,6 +55,18 @@ export class OverlayController {
 
   get isPinned(): boolean {
     return this.pinned;
+  }
+
+  private adoptRestoredLeaf(): void {
+    if (this.leaf) return;
+    const restoredLeaf = this.plugin.app.workspace
+      .getLeavesOfType(FOCUS_OVERLAY_VIEW_TYPE)
+      .find((leaf) =>
+        leaf.view.containerEl.isConnected && !this.detachedLeaves.has(leaf));
+    if (!restoredLeaf) return;
+    this.leaf = restoredLeaf;
+    this.pinned = true;
+    void this.pinWithRetry(restoredLeaf);
   }
 
   /** Повторный вызов закрывает overlay (toggle), guard от второго экземпляра. */
@@ -75,11 +92,14 @@ export class OverlayController {
   }
 
   private async pinWithRetry(leaf: WorkspaceLeaf): Promise<void> {
+    const generation = ++this.pinGeneration;
     for (let attempt = 0; attempt < PIN_MAX_ATTEMPTS; attempt++) {
+      if (this.leaf !== leaf || this.pinGeneration !== generation) return;
       const hostWin = leaf.view.containerEl.win;
       if (hostWin && hostWin !== window) {
         const browserWindow = getBrowserWindowFor(hostWin);
         if (browserWindow) {
+          if (this.leaf !== leaf || this.pinGeneration !== generation) return;
           this.browserWindow = browserWindow;
           this.applyGeometry();
           return;
@@ -87,6 +107,7 @@ export class OverlayController {
       }
       await sleep(PIN_RETRY_DELAY_MS);
     }
+    if (this.leaf !== leaf || this.pinGeneration !== generation) return;
     notify("the window opened, but could not be pinned on top (the Electron API is unavailable).");
   }
 
@@ -139,7 +160,9 @@ export class OverlayController {
   close(): void {
     this.rememberBounds();
     this.release();
-    this.leaf?.detach();
+    const leaf = this.leaf;
+    if (leaf) this.detachedLeaves.add(leaf);
+    leaf?.detach();
     this.forget();
   }
 
@@ -149,6 +172,7 @@ export class OverlayController {
    * окно остаётся обычным popout — пользователь закроет его сам.
    */
   release(): void {
+    this.pinGeneration += 1;
     if (this.browserWindow) releaseWindow(this.browserWindow);
   }
 
