@@ -172,6 +172,10 @@ export class TimerService {
     return this.plugin.settings.runningTimer;
   }
 
+  get pendingWork(): Promise<void> {
+    return this.operationQueue;
+  }
+
   /** Бежит ли таймер на этой точной строке. */
   isRunningOn(filePath: string, lineText: string, lineNo: number): boolean {
     const timer = this.running;

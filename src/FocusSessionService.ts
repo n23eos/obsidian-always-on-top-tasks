@@ -23,6 +23,10 @@ export class FocusSessionService {
     return this.plugin.settings.focusSession;
   }
 
+  get pendingWork(): Promise<void> {
+    return this.operationQueue;
+  }
+
   async start(filePath: string, selected: FocusCandidate[]): Promise<void> {
     return this.serialize(async () => {
       const existing = this.session;

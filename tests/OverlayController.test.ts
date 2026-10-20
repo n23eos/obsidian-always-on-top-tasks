@@ -75,6 +75,7 @@ function createHarness(
     registerEvent: vi.fn(),
     registerInterval: vi.fn(),
     patchSettings: vi.fn(async () => undefined),
+    syncQuitWorkaround: vi.fn(),
   };
   const controller = new OverlayController(plugin as never);
 
@@ -110,6 +111,19 @@ afterEach(() => {
 });
 
 describe("OverlayController", () => {
+  test("updates quit scope when a delayed native window becomes available", async () => {
+    const leaf = createLeaf({} as Window);
+    const harness = createHarness();
+    harness.openedLeaves.push(leaf);
+    electron.getBrowserWindowFor.mockReturnValueOnce(null).mockReturnValue(createBrowserWindow(7));
+    const opening = harness.controller.toggle({ path: "focus.md" } as never);
+    await Promise.resolve();
+    expect(harness.plugin.syncQuitWorkaround).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(75);
+    await opening;
+    expect(harness.plugin.syncQuitWorkaround).toHaveBeenCalledOnce();
+  });
+
   test("adopts and re-pins the overlay restored by the workspace", async () => {
     const hostWindow = {} as Window;
     const restoredLeaf = createLeaf(hostWindow);

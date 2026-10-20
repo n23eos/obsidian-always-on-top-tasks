@@ -102,6 +102,7 @@ export class OverlayController {
           if (this.leaf !== leaf || this.pinGeneration !== generation) return;
           this.browserWindow = browserWindow;
           this.applyGeometry();
+          this.plugin.syncQuitWorkaround?.();
           return;
         }
       }

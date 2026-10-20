@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS, migrateSettings, type PluginSettings } from "./settin
 import { notify } from "./notify";
 import { FocusSessionService } from "./FocusSessionService";
 import { SettingsPersistence } from "./SettingsPersistence";
+import { installQuitWorkaround } from "./quit/installQuitWorkaround";
 
 const STATUS_BAR_TICK_MS = 1000;
 
@@ -18,6 +19,7 @@ export default class TasksForFocusPlugin extends Plugin {
   focusSessions: FocusSessionService = new FocusSessionService(this);
   statusBar: StatusBarTimer = new StatusBarTimer(this);
   private ribbonEl: HTMLElement | null = null;
+  private quitWorkaround: ReturnType<typeof installQuitWorkaround> = null;
   private persistence = new SettingsPersistence({
     get: () => this.settings,
     set: (settings) => { this.settings = settings; },
@@ -108,9 +110,16 @@ export default class TasksForFocusPlugin extends Plugin {
         return true;
       },
     });
+    this.quitWorkaround = installQuitWorkaround(this, () => this.persistence.patch({}));
+  }
+
+  syncQuitWorkaround(): void {
+    this.quitWorkaround?.syncWindow();
   }
 
   onunload(): void {
+    this.quitWorkaround?.dispose();
+    this.quitWorkaround = null;
     // Гайдлайн Obsidian: плагин не закрывает leaf'ы в onunload. Снимаем только
     // always-on-top, окно превращается в обычный popout.
     this.overlay.release();

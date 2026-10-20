@@ -302,10 +302,16 @@ If this project was useful to you, feel free to support further development:
 
 ### Quitting Obsidian with a popout on macOS
 
-On Obsidian 1.13.7 with Electron 39.8.3, a Quit request can close the windows
-without terminating the application process. This was reproduced with both a
-standard Obsidian popout and the focus overlay. If Obsidian remains running,
-issue Quit again from its Dock menu. A second normal Quit completed shutdown in
-our tests. The plugin does not force-close windows or bypass Obsidian's save
-handlers. Full restart checks restored the selected session, timers and pinned
-overlay. See [native verification](specs/003-focus-sessions/verification.md).
+For Obsidian 1.13.7 with Electron 39.8.3 on macOS, a guarded workaround completes
+Quit from a single request when only the current vault and one focus overlay are
+open. It saves pending session and timer state before allowing windows to close,
+then completes the requested exit after both windows have closed. A failed save
+leaves the windows open and shows a notice. It never force-closes a window or
+bypasses Obsidian's save handlers.
+
+The workaround stays inactive with other vaults, settings popouts or other
+BrowserWindows, unsupported versions, or a later registered Quit handler. These
+cases retain Obsidian's normal behavior, which can leave the process running after
+closing popouts. Issue Quit again if needed. This conservative scope avoids
+interfering with another window's save or cancellation. See the
+[safety and restart checks](specs/005-safe-quit/verification.md).
