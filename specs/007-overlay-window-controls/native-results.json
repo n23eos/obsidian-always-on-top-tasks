@@ -1,0 +1,134 @@
+[
+  {
+    "name": "hidden state survives actual plugin reload",
+    "pass": true
+  },
+  {
+    "name": "restored placeholder has no task names",
+    "pass": true
+  },
+  {
+    "name": "restored window title has no note name",
+    "pass": true
+  },
+  {
+    "name": "privacy command registered",
+    "pass": true
+  },
+  {
+    "name": "command reveals tasks",
+    "pass": true
+  },
+  {
+    "name": "command hides immediately with editor open",
+    "pass": true
+  },
+  {
+    "name": "timer remains unchanged",
+    "pass": true
+  },
+  {
+    "name": "window title clears on hide",
+    "pass": true
+  },
+  {
+    "name": "settings refresh cannot reveal content",
+    "pass": true
+  },
+  {
+    "name": "state restoration keeps timer and privacy",
+    "pass": true
+  },
+  {
+    "name": "reveal restores running timer control",
+    "pass": true
+  },
+  {
+    "name": "timer stops after reveal",
+    "pass": true
+  },
+  {
+    "name": "top drag region reaches left and right edges",
+    "pass": true
+  },
+  {
+    "name": "top drag region starts at top edge",
+    "pass": true
+  },
+  {
+    "name": "top region draggable",
+    "pass": true
+  },
+  {
+    "name": "all header buttons remain clickable",
+    "pass": true
+  },
+  {
+    "name": "custom height applied from actual settings tab",
+    "pass": true
+  },
+  {
+    "name": "left dock retains height and edge",
+    "pass": true
+  },
+  {
+    "name": "minimum custom height applied",
+    "pass": true
+  },
+  {
+    "name": "reveal control fits minimum height",
+    "pass": true
+  },
+  {
+    "name": "large custom height clamped to display",
+    "pass": true
+  },
+  {
+    "name": "full height uses work area",
+    "pass": true
+  },
+  {
+    "name": "full height preserves custom choice",
+    "pass": true
+  },
+  {
+    "name": "custom height restored after full height",
+    "pass": true
+  },
+  {
+    "name": "free manual size survives docked height changes",
+    "pass": true
+  },
+  {
+    "name": "height and full-height mode persisted",
+    "pass": true
+  },
+  {
+    "name": "geometry changes preserve hidden content",
+    "pass": true
+  },
+  {
+    "name": "reload applies saved custom height instead of constructor defaults",
+    "pass": true
+  },
+  {
+    "name": "reload preserves hidden state",
+    "pass": true
+  },
+  {
+    "name": "free bounds captured before periodic poll",
+    "pass": true
+  },
+  {
+    "name": "quick docking round trip restores manual size",
+    "pass": true
+  },
+  {
+    "name": "markdown can contain matching class",
+    "pass": true
+  },
+  {
+    "name": "note HTML cannot bypass hiding",
+    "pass": true
+  }
+]

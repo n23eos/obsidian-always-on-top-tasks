@@ -150,6 +150,7 @@ Copy `manifest.json`, `main.js` and `styles.css` into
 | Command | What it does |
 |---|---|
 | **Open current note as focus overlay** | Pins the active note; the path is remembered for next time |
+| **Hide or show overlay content** | Replaces the overlay contents with a neutral placeholder; timers keep running. Bind a hotkey for quick access. |
 | **Toggle focus overlay** | Shows or hides the overlay — worth binding to a hotkey. The target icon in the ribbon does the same |
 | **Toggle always on top** | Lets the overlay drop behind other windows for a moment without closing it; the pin button in the overlay header does the same |
 | **Stop the running timer** | Commits the session from anywhere — the status bar item in the main window does the same on click |
@@ -166,12 +167,12 @@ way, so the plugin keeps working from Obsidian 1.4.
 
 **Overlay window** — the note to pin (with a file picker), position (docked to
 the right or left edge, or *free*: the window stays wherever you drag it, and
-the place is remembered), width of the docked overlay, opacity.
+the place is remembered), width of the docked overlay, full-height toggle, custom height (200-1200 px), opacity.
 
 **Timer and breaks** — the running timer in the main window's status bar,
 breaks and the reminder threshold.
 
-**Focus sessions**: enable or disable sessions, set the default task goal, and choose whether to show only the current task.
+**Focus sessions**: off by default. Enable sessions, set the default task goal, and choose whether to show only the current task. Session setup uses one labeled task-count field.
 
 **Appearance** — font size, hide completed tasks, tasks only (skip the prose
 between tasks), the emoji status button, your own status emoji palette, the
@@ -199,9 +200,15 @@ running timer.
   "looks like the timer was left running" warning.
 - **Editing is one click.** Click the task text to rename it in place; the
   footer has a field for adding new tasks.
-- **The header is a handle.** Drag the overlay by its header; in the *free*
+- **The top block is a handle.** Drag any noninteractive part of the top block, including its side padding; in the *free*
   position mode it stays where you leave it, and a saved position on a monitor
   that is no longer connected falls back to the right edge.
+
+**Quick privacy:** the shield button and **Hide or show overlay content** command
+hide the overlay title, tasks and session details. Timers continue running.
+Hidden state survives plugin reload and workspace restoration. Use **Show content**
+to return. This affects only the overlay, not other notes or the status bar.
+The command supports Obsidian hotkeys; it does not add a global shortcut or Win+D integration.
 
 ## Platform limitations
 

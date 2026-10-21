@@ -14,7 +14,7 @@ const STATUS_BAR_TICK_MS = 1000;
 
 export default class TasksForFocusPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
-  overlay: OverlayController = new OverlayController(this);
+  overlay!: OverlayController;
   timers: TimerService = new TimerService(this);
   focusSessions: FocusSessionService = new FocusSessionService(this);
   statusBar: StatusBarTimer = new StatusBarTimer(this);
@@ -28,6 +28,7 @@ export default class TasksForFocusPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    this.overlay = new OverlayController(this);
 
     this.registerView(FOCUS_OVERLAY_VIEW_TYPE, (leaf) => new FocusOverlayView(leaf, this));
     this.addSettingTab(new TasksForFocusSettingsTab(this.app, this));
@@ -64,6 +65,22 @@ export default class TasksForFocusPlugin extends Plugin {
       id: "toggle-focus-overlay",
       name: "Toggle focus overlay",
       callback: () => void this.toggleOverlay(),
+    });
+
+    this.addCommand({
+      id: "toggle-overlay-content",
+      name: "Hide or show overlay content",
+      checkCallback: (checking) => {
+        const views = this.app.workspace.getLeavesOfType(FOCUS_OVERLAY_VIEW_TYPE)
+          .map((leaf) => leaf.view)
+          .filter((view): view is FocusOverlayView => view instanceof FocusOverlayView);
+        if (!views.length) return false;
+        if (!checking) {
+          const hide = views.some((view) => !view.isContentHidden);
+          for (const view of views) view.setContentHidden(hide);
+        }
+        return true;
+      },
     });
 
     this.addCommand({
@@ -225,6 +242,10 @@ export default class TasksForFocusPlugin extends Plugin {
 
   /** Сохранить и применить везде: окно, вью, статус-бар, ribbon. */
   async updateSettings(patch: Partial<PluginSettings>): Promise<void> {
+    if (patch.dockMode && patch.dockMode !== "free" && !("freeBounds" in patch)) {
+      const freeBounds = this.overlay.captureFreeBounds();
+      if (freeBounds) patch = { ...patch, freeBounds };
+    }
     const { focusSessionsEnabled, ...rest } = patch;
     if (focusSessionsEnabled !== undefined) {
       await this.focusSessions.setEnabled(focusSessionsEnabled);

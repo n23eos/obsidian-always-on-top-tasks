@@ -1,0 +1,143 @@
+{
+  "checks": [
+    {
+      "name": "120 tasks rendered in actual Obsidian",
+      "pass": true
+    },
+    {
+      "name": "private cycle 0",
+      "pass": true
+    },
+    {
+      "name": "private cycle 1",
+      "pass": true
+    },
+    {
+      "name": "private cycle 2",
+      "pass": true
+    },
+    {
+      "name": "private cycle 3",
+      "pass": true
+    },
+    {
+      "name": "private cycle 4",
+      "pass": true
+    },
+    {
+      "name": "private cycle 5",
+      "pass": true
+    },
+    {
+      "name": "private cycle 6",
+      "pass": true
+    },
+    {
+      "name": "private cycle 7",
+      "pass": true
+    },
+    {
+      "name": "private cycle 8",
+      "pass": true
+    },
+    {
+      "name": "private cycle 9",
+      "pass": true
+    },
+    {
+      "name": "private cycle 10",
+      "pass": true
+    },
+    {
+      "name": "private cycle 11",
+      "pass": true
+    },
+    {
+      "name": "private cycle 12",
+      "pass": true
+    },
+    {
+      "name": "private cycle 13",
+      "pass": true
+    },
+    {
+      "name": "private cycle 14",
+      "pass": true
+    },
+    {
+      "name": "private cycle 15",
+      "pass": true
+    },
+    {
+      "name": "private cycle 16",
+      "pass": true
+    },
+    {
+      "name": "private cycle 17",
+      "pass": true
+    },
+    {
+      "name": "private cycle 18",
+      "pass": true
+    },
+    {
+      "name": "private cycle 19",
+      "pass": true
+    },
+    {
+      "name": "DOM size stable after twenty hide/reveal cycles",
+      "pass": true
+    },
+    {
+      "name": "task count stable after repeated renders",
+      "pass": true
+    },
+    {
+      "name": "fold removes only descendants",
+      "pass": true
+    },
+    {
+      "name": "expand restores descendants",
+      "pass": true
+    },
+    {
+      "name": "1000 hidden timer ticks keep content hidden",
+      "pass": true
+    },
+    {
+      "name": "hidden timer ticks preserve running state",
+      "pass": true
+    },
+    {
+      "name": "timer stops successfully after repeated visibility changes",
+      "pass": true
+    },
+    {
+      "name": "timer write reaches correct Markdown task",
+      "pass": true
+    },
+    {
+      "name": "focus session panel can be enabled",
+      "pass": true
+    },
+    {
+      "name": "focus session panel disables cleanly",
+      "pass": true
+    },
+    {
+      "name": "no uncaught native window errors",
+      "pass": true
+    }
+  ],
+  "render120TasksMs": {
+    "median": 16,
+    "max": 23.800000190734863
+  },
+  "hideMs": {
+    "median": 1.2999999523162842,
+    "max": 1.5
+  },
+  "errors": [],
+  "restored": true,
+  "version": "0.10.0"
+}

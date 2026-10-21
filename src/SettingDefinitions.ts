@@ -4,7 +4,12 @@
 
 import type { SettingDefinitionItem } from "obsidian";
 import { STATUS_EMOJIS } from "./core/taskLine";
-import type { PluginSettings } from "./settings";
+import {
+  MAX_OVERLAY_HEIGHT,
+  MIN_OVERLAY_HEIGHT,
+  OVERLAY_HEIGHT_STEP,
+  type PluginSettings,
+} from "./settings";
 
 export type SettingKey = keyof PluginSettings;
 
@@ -12,6 +17,7 @@ export type SettingKey = keyof PluginSettings;
 export const VISIBILITY_KEYS: readonly SettingKey[] = [
   "breaksEnabled",
   "dockMode",
+  "overlayFullHeight",
   "focusSessionsEnabled",
 ];
 
@@ -54,6 +60,25 @@ export function buildSettingDefinitions(ctx: DefinitionContext): SettingDefiniti
             min: 240,
             max: 560,
             step: 10,
+            displayFormat: (value) => `${value} px`,
+          },
+        },
+        {
+          name: "Full height",
+          desc: "Use all available screen height for the docked overlay.",
+          visible: () => ctx.settings().dockMode !== "free",
+          control: { type: "toggle", key: "overlayFullHeight" },
+        },
+        {
+          name: "Overlay height",
+          desc: "Height of the docked overlay window when full height is off.",
+          visible: () => ctx.settings().dockMode !== "free" && !ctx.settings().overlayFullHeight,
+          control: {
+            type: "slider",
+            key: "overlayHeight",
+            min: MIN_OVERLAY_HEIGHT,
+            max: MAX_OVERLAY_HEIGHT,
+            step: OVERLAY_HEIGHT_STEP,
             displayFormat: (value) => `${value} px`,
           },
         },

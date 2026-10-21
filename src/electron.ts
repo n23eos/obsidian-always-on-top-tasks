@@ -88,6 +88,8 @@ export interface OverlayGeometry {
   /** Край экрана; null = свободный режим (окно остаётся где стоит). */
   edge: OverlayEdge | null;
   width: number;
+  /** Высота закреплённого окна; null = вся доступная высота. */
+  height: number | null;
   opacity: number; // 0..1
   margin: number;
   /** Сохранённое положение для свободного режима. */
@@ -102,6 +104,7 @@ function intersects(a: ElectronRect, b: ElectronRect): boolean {
 }
 
 function dockedBounds(workArea: ElectronRect, geometry: OverlayGeometry, edge: OverlayEdge): ElectronRect {
+  const availableHeight = Math.max(1, workArea.height - geometry.margin * 2);
   const x =
     edge === "right"
       ? workArea.x + workArea.width - geometry.width - geometry.margin
@@ -110,7 +113,9 @@ function dockedBounds(workArea: ElectronRect, geometry: OverlayGeometry, edge: O
     x,
     y: workArea.y + geometry.margin,
     width: geometry.width,
-    height: workArea.height - geometry.margin * 2,
+    height: geometry.height === null
+      ? availableHeight
+      : Math.min(Math.max(1, geometry.height), availableHeight),
   };
 }
 

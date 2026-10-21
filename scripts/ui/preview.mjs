@@ -25,7 +25,7 @@ let failWrite = false;
 const handlers = new Map();
 const plugin = {
   settings: migrateSettings(JSON.parse(localStorage.getItem("focus-preview-settings") ?? "null") ?? { ...DEFAULT_SETTINGS, tasksOnly: true }),
-  app: { vault: {
+  app: { workspace: { requestSaveLayout() { localStorage.setItem("focus-preview-view", JSON.stringify(view.getState())); } }, vault: {
     getAbstractFileByPath: (path) => path === file.path ? file : null,
     cachedRead: async () => content,
     read: async () => content,
@@ -59,7 +59,7 @@ plugin.timers = new TimerService(plugin);
 plugin.focusSessions = new FocusSessionService(plugin);
 const view = new FocusOverlayView({}, plugin);
 await view.onOpen();
-await view.setState({ filePath: file.path }, {});
+await view.setState(JSON.parse(localStorage.getItem("focus-preview-view") ?? "null") ?? { filePath: file.path }, {});
 const status = new StatusBarTimer(plugin);
 status.sync();
 setInterval(() => status.tick(), 1000);
@@ -74,6 +74,7 @@ document.querySelector("#reload").onclick = () => location.reload();
 document.querySelector("#reset").onclick = () => {
   localStorage.removeItem("focus-preview-settings");
   localStorage.removeItem("focus-preview-note");
+  localStorage.removeItem("focus-preview-view");
   location.reload();
 };
 document.querySelector("#size").onchange = (event) => {

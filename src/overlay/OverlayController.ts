@@ -118,11 +118,20 @@ export class OverlayController {
     const hostWin = this.leaf?.view.containerEl.win;
     if (!hostWin) return;
 
-    const { dockMode, overlayWidth, opacity, clickThrough, nonFocusable, freeBounds } =
-      this.plugin.settings;
+    const {
+      dockMode,
+      overlayWidth,
+      overlayFullHeight,
+      overlayHeight,
+      opacity,
+      clickThrough,
+      nonFocusable,
+      freeBounds,
+    } = this.plugin.settings;
     applyOverlayGeometry(this.browserWindow, hostWin, {
       edge: dockMode === "free" ? null : dockMode,
       width: overlayWidth,
+      height: overlayFullHeight ? null : overlayHeight,
       opacity,
       margin: OVERLAY_MARGIN,
       freeBounds,
@@ -142,6 +151,12 @@ export class OverlayController {
     this.pinned = !this.pinned;
     if (this.browserWindow) setPinned(this.browserWindow, this.pinned);
     return this.pinned;
+  }
+
+  /** Capture before changing docking mode, without waiting for the periodic save. */
+  captureFreeBounds() {
+    if (this.plugin.settings.dockMode !== "free" || !this.browserWindow) return null;
+    return readBounds(this.browserWindow);
   }
 
   /** Свободный режим: положение окна сохраняется, когда пользователь его двигает. */

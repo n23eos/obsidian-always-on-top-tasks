@@ -14,7 +14,7 @@ afterEach(() => vi.restoreAllMocks());
 it.each([true, false])("restores the switch after failed disable (modern settings: %s)", async (modern) => {
   vi.spyOn(host, "requireApiVersion").mockReturnValue(modern);
   const plugin = {
-    settings: { ...DEFAULT_SETTINGS },
+    settings: { ...DEFAULT_SETTINGS, focusSessionsEnabled: true },
     updateSettings: vi.fn(async () => { throw new Error("Could not save timer"); }),
   };
   const tab = new TasksForFocusSettingsTab({} as App, plugin as unknown as TasksForFocusPlugin);

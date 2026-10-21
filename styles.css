@@ -23,7 +23,8 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
 
 /* ---- содержимое ---- */
 
-.tfa-overlay {
+.tfa-overlay,
+.view-content.tfa-overlay {
   container-type: inline-size;
   padding: 0 12px 10px;
   /* размер приходит из настроек одной переменной; сниппет темы может перебить */
@@ -60,9 +61,23 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
   position: sticky;
   top: 0;
   z-index: 1;
-  margin-bottom: 4px;
+  margin: 0 -12px 4px;
+  padding: 0 12px;
+  -webkit-app-region: drag;
   background: var(--background-primary);
   border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tfa-overlay .tfa-top :is(button, input, textarea, select, a, [role="button"]) {
+  -webkit-app-region: no-drag;
+}
+
+.tfa-overlay .tfa-private {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px 0;
+  color: var(--text-muted);
 }
 
 .tfa-overlay .tfa-header {
@@ -476,7 +491,6 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
   margin: 8px 0;
 }
 
-.tfa-overlay .tfa-session-presets,
 .tfa-overlay .tfa-session-actions,
 .tfa-overlay .tfa-session-metrics {
   display: flex;
@@ -525,11 +539,15 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
   filter: brightness(1.06);
 }
 
-.tfa-overlay .tfa-session-presets .tfa-session-btn {
-  min-width: 36px;
+.tfa-overlay .tfa-session-goal-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--text-normal);
 }
 
-.tfa-overlay .tfa-session-presets [aria-pressed="true"],
 .tfa-overlay .tfa-session-pick[aria-pressed="true"] {
   color: var(--interactive-accent);
   border-color: var(--interactive-accent);

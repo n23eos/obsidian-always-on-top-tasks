@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Raincoat sessions disabled",
+    "pass": true
+  },
+  {
+    "name": "existing overlay remains open",
+    "pass": true
+  },
+  {
+    "name": "disabled setup absent from actual overlay",
+    "pass": true
+  },
+  {
+    "name": "one numeric control",
+    "pass": true
+  },
+  {
+    "name": "visible count label",
+    "pass": true
+  },
+  {
+    "name": "no preset buttons",
+    "pass": true
+  },
+  {
+    "name": "count change selects two tasks",
+    "pass": true
+  },
+  {
+    "name": "start submits exactly two tasks",
+    "pass": true
+  },
+  {
+    "name": "disabled preference persisted",
+    "pass": true
+  }
+]

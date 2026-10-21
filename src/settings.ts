@@ -13,6 +13,10 @@ export interface PluginSettings {
   focusNotePath: string;
   dockMode: DockMode;
   overlayWidth: number;
+  /** Использовать всю доступную высоту для закреплённого overlay. */
+  overlayFullHeight: boolean;
+  /** Пользовательская высота закреплённого overlay в пикселях. */
+  overlayHeight: number;
   opacity: number;
   /** Размер шрифта overlay в пикселях. */
   fontSize: number;
@@ -56,6 +60,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   focusNotePath: "",
   dockMode: "right",
   overlayWidth: 340,
+  overlayFullHeight: true,
+  overlayHeight: 400,
   opacity: 0.95,
   fontSize: 13,
   freeBounds: null,
@@ -72,12 +78,15 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   runningTimer: null,
   breakTimer: null,
   focusSession: null,
-  focusSessionsEnabled: true,
+  focusSessionsEnabled: false,
   focusTaskGoal: 3,
   focusOnly: true,
 };
 
 export const OVERLAY_MARGIN = 12;
+export const MIN_OVERLAY_HEIGHT = 200;
+export const OVERLAY_HEIGHT_STEP = 50;
+export const MAX_OVERLAY_HEIGHT = 1200;
 
 /** Ключи, которые кнопка "Reset to defaults" не трогает. */
 const PRESERVED_ON_RESET: readonly (keyof PluginSettings)[] = [
@@ -97,6 +106,12 @@ export function migrateSettings(stored: unknown): PluginSettings {
   const merged: PluginSettings = {
     ...DEFAULT_SETTINGS,
     ...rest,
+    overlayFullHeight: typeof rest.overlayFullHeight === "boolean"
+      ? rest.overlayFullHeight
+      : DEFAULT_SETTINGS.overlayFullHeight,
+    overlayHeight: isOverlayHeight(rest.overlayHeight)
+      ? rest.overlayHeight
+      : DEFAULT_SETTINGS.overlayHeight,
     breakTimer: migrateBreakTimer(rest.breakTimer),
     focusSession: migrateFocusSession(rest.focusSession),
     focusSessionsEnabled: typeof rest.focusSessionsEnabled === "boolean"
@@ -125,6 +140,12 @@ export function resetToDefaults(current: PluginSettings): PluginSettings {
 
 function isFocusTaskGoal(value: unknown): value is number {
   return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 20;
+}
+
+function isOverlayHeight(value: unknown): value is number {
+  return Number.isInteger(value)
+    && (value as number) >= MIN_OVERLAY_HEIGHT
+    && (value as number) <= MAX_OVERLAY_HEIGHT;
 }
 
 function migrateBreakTimer(value: unknown): PersistedBreak | null {

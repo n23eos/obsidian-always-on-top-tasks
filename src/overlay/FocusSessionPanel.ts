@@ -104,27 +104,20 @@ export class FocusSessionPanel {
     }
     const available = new Set(eligible.map((task) => task.text));
     this.selection = new Set([...this.selection].filter((text) => available.has(text)));
-    panel.createDiv({ cls: "tfa-session-eyebrow", text: "A small finish line" });
-    panel.createDiv({ cls: "tfa-session-heading", text: "What will you finish?" });
+    panel.createDiv({ cls: "tfa-session-eyebrow", text: "Focus session" });
+    panel.createDiv({ cls: "tfa-session-heading", text: "Set up a session" });
     panel.createDiv({
       cls: "tfa-session-hint",
-      text: eligible.length ? "Choose a few tasks. Give the rest some space." : "Add an open task to begin a session.",
+      text: eligible.length ? "Choose how many tasks to work on. The first open tasks are selected automatically." : "Add an open task to begin a session.",
     });
 
     if (eligible.length) {
-      const presets = panel.createDiv({ cls: "tfa-session-presets" });
-      for (const count of [1, 3, 5]) {
-        const button = this.button(presets, `${count}`, async () => {
-          this.selection = new Set(eligible.slice(0, count).map((task) => task.text));
-          await this.plugin.patchSettings({ focusTaskGoal: count });
-        });
-        button.setAttribute("aria-label", `Select next ${count} tasks`);
-        button.setAttribute("aria-pressed", String(this.selection.size === count));
-      }
-      const custom = presets.createEl("input", {
+      const goal = panel.createEl("label", { cls: "tfa-session-goal-control" });
+      goal.createSpan({ text: "Number of tasks in this session" });
+      const custom = goal.createEl("input", {
         type: "number",
         cls: "tfa-session-goal",
-        attr: { min: "1", max: "20", step: "1", "aria-label": "Number of tasks", title: "Select the next 1 to 20 open tasks" },
+        attr: { min: "1", max: "20", step: "1", "aria-label": "Number of tasks in this session" },
       });
       custom.value = String(this.selection.size);
       custom.addEventListener("change", () => {
@@ -146,7 +139,7 @@ export class FocusSessionPanel {
         text: selected.length ? `First: ${selected[0].text}` : "Select at least one task below.",
       });
       const controls = panel.createDiv({ cls: "tfa-session-actions" });
-      const start = this.button(controls, `Start ${count}-task session`, async () => {
+      const start = this.button(controls, "Start session", async () => {
         await this.plugin.focusSessions.start(filePath, selected);
       }, true);
       start.disabled ||= count === 0;

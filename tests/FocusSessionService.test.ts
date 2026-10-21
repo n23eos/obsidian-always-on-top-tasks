@@ -538,6 +538,7 @@ describe("FocusSessionService", () => {
     const plugin = {
       settings: {
         ...DEFAULT_SETTINGS,
+        focusSessionsEnabled: true,
         focusSession: activeSession(),
         runningTimer: running,
       } as PluginSettings,
@@ -574,7 +575,7 @@ describe("FocusSessionService", () => {
     let content = CONTENT.replace(/\n/g, "\r\n");
     const file = { path: "focus.md", extension: "md" };
     const plugin = {
-      settings: { ...DEFAULT_SETTINGS },
+      settings: { ...DEFAULT_SETTINGS, focusSessionsEnabled: true },
       app: {
         vault: {
           getAbstractFileByPath: vi.fn(() => file),

@@ -1,6 +1,7 @@
 // Minimal host adapter for view lifecycle tests; no DOM rendering is simulated.
 export class ItemView {
   contentEl = { querySelectorAll: () => [] };
+  async setState(): Promise<void> {}
 }
 export class TFile {}
 export class WorkspaceLeaf {}

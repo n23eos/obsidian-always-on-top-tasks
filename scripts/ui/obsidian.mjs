@@ -46,6 +46,7 @@ export function setIcon(el, name) {
     timer: '<path d="M10 2h4M12 14v-4"/><circle cx="12" cy="14" r="8"/>',
     eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
     "eye-off": '<path d="m3 3 18 18M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/>',
+    shield: '<path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/>',
     pin: '<path d="M12 17v5M5 17h14l-3-5V3H8v9z"/>',
     "pin-off": '<path d="m3 3 18 18M12 17v5M5 17h14l-3-5V3H8v9z"/>',
     x: '<path d="m6 6 12 12M18 6 6 18"/>',

@@ -43,6 +43,7 @@ function safe(promise: Promise<unknown>): void {
 
 interface OverlayViewState extends Record<string, unknown> {
   filePath?: string;
+  privacyHidden?: boolean;
 }
 
 /** Что рендер узнал о бегущей задаче: элемент времени и данные для шапки. */
@@ -64,6 +65,8 @@ function iconButton(parent: HTMLElement, icon: string, label: string): HTMLEleme
 
 export class FocusOverlayView extends ItemView {
   private file: TFile | null = null;
+  private privacyHidden = false;
+  private privacyPlaceholderRendered = false;
   private readonly foldsByFile = new Map<string, Set<string>>();
   private renderTimeout: number | null = null;
   /** Строка (lineNo), под которой открыта полоска эмодзи. null = закрыта. */
@@ -113,7 +116,7 @@ export class FocusOverlayView extends ItemView {
   }
 
   getDisplayText(): string {
-    return this.file ? this.file.basename : "Focus";
+    return this.privacyHidden ? "Focus" : this.file ? this.file.basename : "Focus";
   }
 
   getIcon(): string {
@@ -121,6 +124,7 @@ export class FocusOverlayView extends ItemView {
   }
 
   async setState(state: OverlayViewState, result: ViewStateResult): Promise<void> {
+    this.privacyHidden = state.privacyHidden === true;
     const byPath = state.filePath
       ? this.plugin.app.vault.getAbstractFileByPath(state.filePath)
       : null;
@@ -130,7 +134,39 @@ export class FocusOverlayView extends ItemView {
   }
 
   getState(): OverlayViewState {
-    return { filePath: this.file?.path };
+    return { filePath: this.file?.path, privacyHidden: this.privacyHidden };
+  }
+
+  get isContentHidden(): boolean {
+    return this.privacyHidden;
+  }
+
+  setContentHidden(hidden: boolean): void {
+    this.privacyHidden = hidden;
+    // Dismiss transient controls before rendering so they cannot delay privacy.
+    this.openStripLineNo = null;
+    this.editingLineNo = null;
+    this.pendingRender = false;
+    safe(this.render());
+    this.plugin.app.workspace.requestSaveLayout?.();
+  }
+
+  private renderPrivacyPlaceholder(): void {
+    this.runningTimeEl = this.pinnedTimeEl = this.totalEl = this.breakEl = null;
+    this.pinnedEl = this.runningRowEl = this.topEl = null;
+    this.runningLineNo = null;
+    this.contentEl.empty();
+    const top = this.contentEl.createDiv({ cls: "tfa-top" });
+    const header = top.createDiv({ cls: "tfa-header" });
+    header.createSpan({ cls: "tfa-header-title", text: "Focus" });
+    const close = iconButton(header, "x", "Close overlay");
+    close.addEventListener("click", () => this.plugin.overlay.close());
+    const placeholder = this.contentEl.createDiv({ cls: "tfa-private" });
+    placeholder.createDiv({ text: "Content hidden" });
+    const show = placeholder.createEl("button", { text: "Show content" });
+    show.addEventListener("click", () => this.setContentHidden(false));
+    show.focus({ preventScroll: true });
+    this.privacyPlaceholderRendered = true;
   }
 
   onOpen(): Promise<void> {
@@ -202,6 +238,15 @@ export class FocusOverlayView extends ItemView {
     // Рендер асинхронный: строим во временный контейнер и подменяем DOM одним
     // куском. Устаревшая версия (пришёл новый рендер) молча выбрасывается.
     const version = ++this.renderVersion;
+    const hostWin = this.contentEl.ownerDocument?.defaultView;
+    if (hostWin && hostWin !== window) hostWin.document.title = this.getDisplayText();
+    this.contentEl.classList.toggle("tfa-privacy-hidden", this.privacyHidden);
+    if (this.privacyHidden) {
+      if (!this.privacyPlaceholderRendered) this.renderPrivacyPlaceholder();
+      return;
+    }
+
+    this.privacyPlaceholderRendered = false;
 
     if (!this.file) {
       this.pinnedEl = this.runningRowEl = this.topEl = null;
@@ -447,6 +492,9 @@ export class FocusOverlayView extends ItemView {
     eye.addEventListener("click", () =>
       safe(this.plugin.updateSettings({ hideCompleted: !hideCompleted })),
     );
+
+    const privacy = iconButton(header, "shield", "Hide overlay content");
+    privacy.addEventListener("click", () => this.setContentHidden(true));
 
     const isPinned = this.plugin.overlay.isPinned;
     const pin = iconButton(header, isPinned ? "pin" : "pin-off", isPinned ? "Unpin from top" : "Pin on top");

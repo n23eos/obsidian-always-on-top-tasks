@@ -38,10 +38,34 @@ describe("migrateSettings", () => {
 
   test("adds focus defaults to settings saved by an older version", () => {
     const migrated = migrateSettings({ opacity: 0.8 });
+    expect(migrated.overlayFullHeight).toBe(true);
+    expect(migrated.overlayHeight).toBe(400);
     expect(migrated.focusSession).toBeNull();
-    expect(migrated.focusSessionsEnabled).toBe(true);
+    expect(migrated.focusSessionsEnabled).toBe(false);
     expect(migrated.focusTaskGoal).toBe(3);
     expect(migrated.focusOnly).toBe(true);
+  });
+
+  test("accepts bounded docked heights and rejects unsafe stored values", () => {
+    expect(migrateSettings({ overlayFullHeight: false, overlayHeight: 200 })).toMatchObject({
+      overlayFullHeight: false,
+      overlayHeight: 200,
+    });
+    expect(migrateSettings({ overlayHeight: 1200 }).overlayHeight).toBe(1200);
+    for (const overlayHeight of [-1, 0, 199, 1201, 600.5, "600"]) {
+      expect(migrateSettings({ overlayHeight }).overlayHeight).toBe(400);
+    }
+    expect(migrateSettings({ overlayFullHeight: "no", overlayHeight: 650 })).toMatchObject({
+      overlayFullHeight: true,
+      overlayHeight: 650,
+    });
+  });
+
+  test("keeps an explicit opt-in while leaving new installations disabled", () => {
+    expect(DEFAULT_SETTINGS.focusSessionsEnabled).toBe(false);
+    expect(migrateSettings(null).focusSessionsEnabled).toBe(false);
+    expect(migrateSettings({ focusSessionsEnabled: true }).focusSessionsEnabled).toBe(true);
+    expect(migrateSettings({ focusSessionsEnabled: false }).focusSessionsEnabled).toBe(false);
   });
 
   test("validates focus settings and persisted session data", () => {
@@ -63,7 +87,7 @@ describe("migrateSettings", () => {
       focusOnly: "yes",
       focusSession: { ...FOCUS_SESSION, tasks: [] },
     })).toMatchObject({
-      focusSessionsEnabled: true,
+      focusSessionsEnabled: false,
       focusTaskGoal: 3,
       focusOnly: true,
       focusSession: null,
@@ -106,6 +130,8 @@ describe("resetToDefaults", () => {
     const current = {
       ...DEFAULT_SETTINGS,
       opacity: 0.5,
+      overlayFullHeight: false,
+      overlayHeight: 600,
       focusNotePath: "a.md",
       runningTimer: timer,
       breakTimer,
@@ -114,10 +140,12 @@ describe("resetToDefaults", () => {
     };
     const reset = resetToDefaults(current);
     expect(reset.opacity).toBe(DEFAULT_SETTINGS.opacity);
+    expect(reset.overlayFullHeight).toBe(true);
+    expect(reset.overlayHeight).toBe(400);
     expect(reset.focusNotePath).toBe("a.md");
     expect(reset.runningTimer).toBe(timer);
     expect(reset.breakTimer).toBe(breakTimer);
     expect(reset.focusSession).toBe(FOCUS_SESSION);
-    expect(reset.focusSessionsEnabled).toBe(true);
+    expect(reset.focusSessionsEnabled).toBe(false);
   });
 });
