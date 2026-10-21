@@ -74,3 +74,13 @@ not a claim about all vaults, OS input latency or long-term memory usage.
 Original settings restored exactly, temporary note moved to Trash, overlay
 closed. Native physical dragging, OS focus/other-app switching, full-process
 restart and monitor changes remain manual checks. No new code fixes were needed.
+
+## Release 0.10.0 published, 2026-10-21
+
+Published on the owner's explicit request. Release commit 1cb31753f465d7fe5d15afd68e364744202cfe09
+and tag 0.10.0 pushed. GitHub Actions 39640235853 succeeded, including tests,
+typecheck, lint, build and provenance attestation. All 221 local tests passed.
+English release body matches docs/releases/0.10.0.md. Downloaded main.js,
+manifest.json and styles.css byte-match the local build and Raincoat installation.
+Release: https://github.com/n23eos/obsidian-always-on-top-tasks/releases/tag/0.10.0
+The native input and platform limitations recorded above remain unchanged.
