@@ -27,8 +27,20 @@ export class FocusSessionService {
     return this.operationQueue;
   }
 
+  async setEnabled(enabled: boolean): Promise<void> {
+    const changedAt = Date.now();
+    return this.serialize(async () => {
+      if (enabled === this.plugin.settings.focusSessionsEnabled) return;
+      if (!enabled && this.session && this.session.status !== "finished") {
+        await this.pauseNow(changedAt, false, true);
+      }
+      await this.persistEnabled(enabled);
+    });
+  }
+
   async start(filePath: string, selected: FocusCandidate[]): Promise<void> {
     return this.serialize(async () => {
+      this.requireEnabled();
       const existing = this.session;
       if (existing && existing.status !== "finished") {
         throw new Error("A focus session is already in progress.");
@@ -57,13 +69,19 @@ export class FocusSessionService {
   }
 
   async sync(filePath: string, content: string): Promise<void> {
+    if (!this.plugin.settings.focusSessionsEnabled) return;
     const observedAt = Date.now();
-    return this.serialize(async () => this.syncNow(filePath, content, observedAt));
+    return this.serialize(async () => {
+      if (!this.plugin.settings.focusSessionsEnabled) return;
+      await this.syncNow(filePath, content, observedAt);
+    });
   }
 
   async refresh(filePath: string): Promise<void> {
+    if (!this.plugin.settings.focusSessionsEnabled) return;
     const observedAt = Date.now();
     return this.serialize(async () => {
+      if (!this.plugin.settings.focusSessionsEnabled) return;
       const content = await this.readLatestOrMissing(filePath);
       await this.syncNow(filePath, content ?? "", observedAt);
     });
@@ -71,30 +89,12 @@ export class FocusSessionService {
 
   async pause(startBreak = false): Promise<void> {
     const pausedAt = Date.now();
-    return this.serialize(async () => {
-      const current = this.requireUnfinishedSession();
-      let paused = current;
-      if (current.status === "active") {
-        paused = {
-          ...current,
-          status: "paused",
-          activeSince: null,
-          elapsedMs: current.elapsedMs + activeDelta(current, pausedAt),
-        };
-        await this.persistSession(paused);
-      }
-      const content = await this.readLatestOrMissing(paused.filePath);
-      await this.syncNow(paused.filePath, content ?? "", pausedAt);
-      paused = this.requireUnfinishedSession();
-      await this.stopSessionTimer(paused);
-      if (startBreak && this.plugin.settings.breaksEnabled) {
-        await this.plugin.timers.startBreak(paused.filePath);
-      }
-    });
+    return this.serialize(async () => this.pauseNow(pausedAt, startBreak));
   }
 
   async resume(): Promise<void> {
     return this.serialize(async () => {
+      this.requireEnabled();
       let current = this.requireUnfinishedSession();
       const content = await this.readLatest(current.filePath);
       await this.syncNow(current.filePath, content);
@@ -191,6 +191,31 @@ export class FocusSessionService {
 
   private get palette(): readonly string[] {
     return parseStatusPalette(this.plugin.settings.statusEmojis);
+  }
+
+  private async pauseNow(
+    pausedAt: number,
+    startBreak: boolean,
+    preserveUnrelatedTimer = false,
+  ): Promise<void> {
+    const current = this.requireUnfinishedSession();
+    let paused = current;
+    if (current.status === "active") {
+      paused = {
+        ...current,
+        status: "paused",
+        activeSince: null,
+        elapsedMs: current.elapsedMs + activeDelta(current, pausedAt),
+      };
+      await this.persistSession(paused);
+    }
+    const content = await this.readLatestOrMissing(paused.filePath);
+    await this.syncNow(paused.filePath, content ?? "", pausedAt);
+    paused = this.requireUnfinishedSession();
+    await this.stopSessionTimer(paused, preserveUnrelatedTimer);
+    if (startBreak && this.plugin.settings.breaksEnabled) {
+      await this.plugin.timers.startBreak(paused.filePath);
+    }
   }
 
   private async syncNow(filePath: string, content: string, observedAt = Date.now()): Promise<void> {
@@ -292,10 +317,18 @@ export class FocusSessionService {
     }
   }
 
-  private async stopSessionTimer(session: FocusSession): Promise<void> {
+  private async stopSessionTimer(
+    session: FocusSession,
+    preserveUnrelatedTimer = false,
+  ): Promise<void> {
     const running = this.plugin.timers.running;
     if (!running) return;
+    if (preserveUnrelatedTimer && !session.tasks.some((task) =>
+      task.lineNo === running.lineNo && task.lineText === running.lineText)) {
+      return;
+    }
     if (running.filePath !== session.filePath) {
+      if (preserveUnrelatedTimer) return;
       throw new Error("A task timer from another note is still running.");
     }
     await this.plugin.timers.stop();
@@ -345,6 +378,12 @@ export class FocusSessionService {
     return current;
   }
 
+  private requireEnabled(): void {
+    if (!this.plugin.settings.focusSessionsEnabled) {
+      throw new Error("Focus sessions are disabled in settings.");
+    }
+  }
+
   private async persistSession(next: FocusSession | null): Promise<void> {
     const previous = this.session;
     try {
@@ -353,6 +392,16 @@ export class FocusSessionService {
       this.plugin.settings = { ...this.plugin.settings, focusSession: previous };
       const detail = error instanceof Error ? ` ${error.message}` : "";
       throw new Error(`Could not save the focus session.${detail}`);
+    }
+  }
+
+  private async persistEnabled(enabled: boolean): Promise<void> {
+    const previous = this.plugin.settings.focusSessionsEnabled;
+    try {
+      await this.plugin.patchSettings({ focusSessionsEnabled: enabled });
+    } catch (error) {
+      this.plugin.settings = { ...this.plugin.settings, focusSessionsEnabled: previous };
+      throw error;
     }
   }
 

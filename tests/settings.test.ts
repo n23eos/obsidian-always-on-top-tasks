@@ -39,26 +39,31 @@ describe("migrateSettings", () => {
   test("adds focus defaults to settings saved by an older version", () => {
     const migrated = migrateSettings({ opacity: 0.8 });
     expect(migrated.focusSession).toBeNull();
+    expect(migrated.focusSessionsEnabled).toBe(true);
     expect(migrated.focusTaskGoal).toBe(3);
     expect(migrated.focusOnly).toBe(true);
   });
 
   test("validates focus settings and persisted session data", () => {
     expect(migrateSettings({
+      focusSessionsEnabled: false,
       focusTaskGoal: 20,
       focusOnly: false,
       focusSession: FOCUS_SESSION,
     })).toMatchObject({
+      focusSessionsEnabled: false,
       focusTaskGoal: 20,
       focusOnly: false,
       focusSession: FOCUS_SESSION,
     });
 
     expect(migrateSettings({
+      focusSessionsEnabled: "no",
       focusTaskGoal: 0,
       focusOnly: "yes",
       focusSession: { ...FOCUS_SESSION, tasks: [] },
     })).toMatchObject({
+      focusSessionsEnabled: true,
       focusTaskGoal: 3,
       focusOnly: true,
       focusSession: null,
@@ -105,6 +110,7 @@ describe("resetToDefaults", () => {
       runningTimer: timer,
       breakTimer,
       focusSession: FOCUS_SESSION,
+      focusSessionsEnabled: false,
     };
     const reset = resetToDefaults(current);
     expect(reset.opacity).toBe(DEFAULT_SETTINGS.opacity);
@@ -112,5 +118,6 @@ describe("resetToDefaults", () => {
     expect(reset.runningTimer).toBe(timer);
     expect(reset.breakTimer).toBe(breakTimer);
     expect(reset.focusSession).toBe(FOCUS_SESSION);
+    expect(reset.focusSessionsEnabled).toBe(true);
   });
 });

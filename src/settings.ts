@@ -44,6 +44,8 @@ export interface PluginSettings {
   breakTimer: PersistedBreak | null;
   /** Текущая или последняя завершённая фокус-сессия. */
   focusSession: FocusSession | null;
+  /** Показывать и разрешать фокус-сессии. */
+  focusSessionsEnabled: boolean;
   /** Предпочтительное число задач при создании фокус-сессии. */
   focusTaskGoal: number;
   /** Показывать только выбранные задачи во время фокус-сессии. */
@@ -70,6 +72,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   runningTimer: null,
   breakTimer: null,
   focusSession: null,
+  focusSessionsEnabled: true,
   focusTaskGoal: 3,
   focusOnly: true,
 };
@@ -96,6 +99,9 @@ export function migrateSettings(stored: unknown): PluginSettings {
     ...rest,
     breakTimer: migrateBreakTimer(rest.breakTimer),
     focusSession: migrateFocusSession(rest.focusSession),
+    focusSessionsEnabled: typeof rest.focusSessionsEnabled === "boolean"
+      ? rest.focusSessionsEnabled
+      : DEFAULT_SETTINGS.focusSessionsEnabled,
     focusTaskGoal: isFocusTaskGoal(rest.focusTaskGoal)
       ? rest.focusTaskGoal
       : DEFAULT_SETTINGS.focusTaskGoal,

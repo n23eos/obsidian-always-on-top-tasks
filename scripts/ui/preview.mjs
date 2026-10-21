@@ -12,6 +12,10 @@ const initialContent = [
   "- [ ] 🔵 Подготовить обновление плагина ⏱️ 0:12:00",
   "  - [x] Проверить сохранение ⏱️ 0:08:35",
   "  - [ ] Проверить длинное название задачи на узкой панели ⏱️ 0:02:20",
+  "- Lectures",
+  "  - [ ] Lecture one",
+  "    - [x] Notes",
+  "  - [ ] Lecture two",
   "- [ ] Одинаковая задача",
   "- [ ] Одинаковая задача",
   ...Array.from({ length: 14 }, (_, i) => `- [ ] Следующий шаг ${i + 1}`),
@@ -36,7 +40,12 @@ const plugin = {
   } },
   overlay: { isPinned: true, blur() {}, togglePin() { this.isPinned = !this.isPinned; }, close() {} },
   async patchSettings(patch) { await persistence.patch(patch); },
-  async updateSettings(patch) { await this.patchSettings(patch); view.requestRender(); },
+  async updateSettings(patch) {
+    const { focusSessionsEnabled, ...rest } = patch;
+    if (focusSessionsEnabled !== undefined) await this.focusSessions.setEnabled(focusSessionsEnabled);
+    await this.patchSettings(rest);
+    view.requestRender();
+  },
   refreshOverlayViews() { view.requestRender(); },
   addStatusBarItem() { return document.querySelector("#status").createSpan(); },
   async stopRunningTimer() { await this.timers.stop(); view.requestRender(); },
@@ -72,3 +81,9 @@ document.querySelector("#size").onchange = (event) => {
 };
 addEventListener("error", (event) => { document.querySelector("#errors").textContent += event.message; });
 addEventListener("unhandledrejection", (event) => { document.querySelector("#errors").textContent += String(event.reason); });
+
+const sessionsToggle = document.querySelector("#sessions");
+sessionsToggle.checked = plugin.settings.focusSessionsEnabled;
+sessionsToggle.onchange = async () => {
+  await plugin.updateSettings({ focusSessionsEnabled: sessionsToggle.checked });
+};

@@ -49,12 +49,17 @@ export class FocusSessionPanel {
   }
 
   tick(): void {
+    if (!this.plugin.settings.focusSessionsEnabled) return;
     const session = this.plugin.focusSessions.session;
     if (session) this.clockEl?.setText(formatDuration(elapsedSessionSeconds(session)));
   }
 
   render(parent: HTMLElement, filePath: string, candidates: FocusCandidate[]): void {
     this.clockEl = null;
+    if (!this.plugin.settings.focusSessionsEnabled) {
+      this.choosing = false;
+      return;
+    }
     const panel = parent.createDiv({ cls: "tfa-session" });
     panel.setAttribute("aria-label", "Focus session");
     const session = this.plugin.focusSessions.session;

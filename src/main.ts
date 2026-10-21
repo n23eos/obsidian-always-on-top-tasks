@@ -40,17 +40,21 @@ export default class TasksForFocusPlugin extends Plugin {
       }),
     );
     this.registerEvent(this.app.vault.on("modify", (file) => {
-      if (file instanceof TFile && file.path === this.focusSessions.session?.filePath) {
+      if (this.settings.focusSessionsEnabled
+        && file instanceof TFile
+        && file.path === this.focusSessions.session?.filePath) {
         void this.syncFocusSession(file);
       }
     }));
     this.registerEvent(this.app.vault.on("delete", (file) => {
-      if (file.path === this.focusSessions.session?.filePath) {
+      if (this.settings.focusSessionsEnabled
+        && file.path === this.focusSessions.session?.filePath) {
         void this.focusSessions.refresh(file.path).then(() => this.refreshOverlayViews())
           .catch(() => notify("could not update the focus session. Please retry."));
       }
     }));
     this.app.workspace.onLayoutReady(() => {
+      if (!this.settings.focusSessionsEnabled) return;
       const path = this.focusSessions.session?.filePath;
       const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
       if (file instanceof TFile) void this.syncFocusSession(file);
@@ -100,6 +104,7 @@ export default class TasksForFocusPlugin extends Plugin {
       id: "toggle-session-pause",
       name: "Pause or resume focus session",
       checkCallback: (checking) => {
+        if (!this.settings.focusSessionsEnabled) return false;
         const session = this.focusSessions.session;
         if (!session || session.status === "finished") return false;
         if (!checking) {
@@ -220,7 +225,11 @@ export default class TasksForFocusPlugin extends Plugin {
 
   /** Сохранить и применить везде: окно, вью, статус-бар, ribbon. */
   async updateSettings(patch: Partial<PluginSettings>): Promise<void> {
-    await this.patchSettings(patch);
+    const { focusSessionsEnabled, ...rest } = patch;
+    if (focusSessionsEnabled !== undefined) {
+      await this.focusSessions.setEnabled(focusSessionsEnabled);
+    }
+    if (Object.keys(rest).length > 0) await this.patchSettings(rest);
     this.overlay.applyGeometry();
     this.refreshOverlayViews();
     this.statusBar.sync();

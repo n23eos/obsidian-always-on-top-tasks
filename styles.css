@@ -677,3 +677,26 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
     transition: none;
   }
 }
+
+/* Folding controls keep their own column even in narrow task grids. */
+.tfa-overlay .tfa-foldable {
+  position: relative;
+  margin-left: 28px;
+}
+
+.tfa-overlay .tfa-fold {
+  position: absolute;
+  left: -28px;
+  top: 4px;
+  width: 28px;
+  height: 28px;
+}
+
+.tfa-overlay .tfa-list-parent {
+  min-height: 36px;
+  padding: 2px 2px 2px var(--tfa-indent, 0px);
+}
+
+.tfa-overlay .tfa-list-label p {
+  margin: 6px 0;
+}

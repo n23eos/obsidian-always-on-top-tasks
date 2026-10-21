@@ -15,6 +15,7 @@ import {
 import type TasksForFocusPlugin from "./main";
 import { resetToDefaults } from "./settings";
 import { buildSettingDefinitions, VISIBILITY_KEYS, type SettingKey } from "./SettingDefinitions";
+import { notify } from "./notify";
 import { FileSuggest } from "./FileSuggest";
 
 function isShown(visible: boolean | (() => boolean) | undefined): boolean {
@@ -39,7 +40,13 @@ export class TasksForFocusSettingsTab extends PluginSettingTab {
 
   async setControlValue(key: string, value: unknown): Promise<void> {
     const normalized = key === "focusNotePath" ? normalizeNotePath(value) : value;
-    await this.plugin.updateSettings({ [key]: normalized });
+    try {
+      await this.plugin.updateSettings({ [key]: normalized });
+    } catch (error) {
+      this.refresh();
+      notify(error instanceof Error ? error.message : "could not save settings. Please retry.");
+      return;
+    }
     if (VISIBILITY_KEYS.includes(key as SettingKey)) this.refresh();
   }
 

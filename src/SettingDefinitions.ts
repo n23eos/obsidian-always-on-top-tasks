@@ -9,7 +9,11 @@ import type { PluginSettings } from "./settings";
 export type SettingKey = keyof PluginSettings;
 
 /** Ключи, от которых зависит видимость других строк: после смены вкладка перерисовывается. */
-export const VISIBILITY_KEYS: readonly SettingKey[] = ["breaksEnabled", "dockMode"];
+export const VISIBILITY_KEYS: readonly SettingKey[] = [
+  "breaksEnabled",
+  "dockMode",
+  "focusSessionsEnabled",
+];
 
 export interface DefinitionContext {
   settings: () => PluginSettings;
@@ -72,13 +76,20 @@ export function buildSettingDefinitions(ctx: DefinitionContext): SettingDefiniti
       heading: "Focus sessions",
       items: [
         {
+          name: "Focus sessions",
+          desc: "Plan a short set of tasks with a goal, progress and session timer. Turning this off pauses and keeps the current session.",
+          control: { type: "toggle", key: "focusSessionsEnabled" },
+        },
+        {
           name: "Default task goal",
           desc: "Select this many open tasks when planning a session. You can change the selection in the overlay.",
+          visible: () => ctx.settings().focusSessionsEnabled,
           control: { type: "slider", key: "focusTaskGoal", min: 1, max: 20, step: 1, displayFormat: (value) => `${value} tasks` },
         },
         {
           name: "Only the current task",
           desc: "During a session, hide unrelated work and keep one selected task visible. Show all tasks remains available.",
+          visible: () => ctx.settings().focusSessionsEnabled,
           control: { type: "toggle", key: "focusOnly" },
         },
       ],

@@ -24,6 +24,7 @@ import {
 import { locateLine } from "../core/timer";
 import { notify } from "../notify";
 import { scanFocusTasks } from "../core/focusSession";
+import { scanListBranches, foldedLines, type ListBranch } from "../core/taskTree";
 import { FocusSessionPanel } from "./FocusSessionPanel";
 
 export const FOCUS_OVERLAY_VIEW_TYPE = "tfa-focus-overlay";
@@ -63,6 +64,7 @@ function iconButton(parent: HTMLElement, icon: string, label: string): HTMLEleme
 
 export class FocusOverlayView extends ItemView {
   private file: TFile | null = null;
+  private readonly foldsByFile = new Map<string, Set<string>>();
   private renderTimeout: number | null = null;
   /** Строка (lineNo), под которой открыта полоска эмодзи. null = закрыта. */
   private openStripLineNo: number | null = null;
@@ -211,7 +213,7 @@ export class FocusOverlayView extends ItemView {
         cls: "tfa-empty",
         text: "No note selected, or the note was deleted.",
       });
-      const session = this.plugin.focusSessions.session;
+      const session = this.plugin.settings.focusSessionsEnabled ? this.plugin.focusSessions.session : null;
       if (session) {
         await this.plugin.focusSessions.refresh(session.filePath);
         if (version !== this.renderVersion) return;
@@ -220,7 +222,7 @@ export class FocusOverlayView extends ItemView {
       return;
     }
 
-    await this.plugin.focusSessions.refresh(this.file.path);
+    if (this.plugin.settings.focusSessionsEnabled) await this.plugin.focusSessions.refresh(this.file.path);
     if (version !== this.renderVersion) return;
     const content = await this.plugin.app.vault.read(this.file);
     if (version !== this.renderVersion) return;
@@ -229,7 +231,7 @@ export class FocusOverlayView extends ItemView {
     this.palette = parseStatusPalette(statusEmojis);
     const candidates = scanFocusTasks(content, this.palette);
     const candidateByLine = new Map(candidates.map((task) => [task.lineNo, task]));
-    const session = this.plugin.focusSessions.session;
+    const session = this.plugin.settings.focusSessionsEnabled ? this.plugin.focusSessions.session : null;
     const localSession = session?.filePath === this.file.path && session.status !== "finished" ? session : null;
     const focusedTask = localSession ? this.sessionPanel.currentTask(localSession) : undefined;
     const focusOnly = localSession !== null && this.plugin.settings.focusOnly;
@@ -248,7 +250,12 @@ export class FocusOverlayView extends ItemView {
       : null;
 
     const built = createDiv();
-    this.sessionPanel.render(built, this.file.path, candidates);
+    if (this.plugin.settings.focusSessionsEnabled) this.sessionPanel.render(built, this.file.path, candidates);
+    const branches = scanListBranches(content, this.palette);
+    const folds = this.foldsByFile.get(this.file.path) ?? new Set<string>();
+    this.foldsByFile.set(this.file.path, folds);
+    const hiddenParents = new Set(candidates.filter((task) => hideCompleted && task.checked).map((task) => task.lineNo));
+    const hiddenLines = focusOnly ? new Set<number>() : foldedLines(branches, folds, hiddenParents);
     const runningRef: RunningRef = {
       timeEl: null,
       baseSeconds: 0,
@@ -271,19 +278,38 @@ export class FocusOverlayView extends ItemView {
     for (let i = 0; i < lines.length; i++) {
       const candidate = candidateByLine.get(offset + i);
       const parsed = candidate ? parseTaskLine(lines[i].replace(/\r$/, ""), this.palette) : null;
+      const branch = branches.get(offset + i);
       if (!parsed) {
-        if (!tasksOnly && !focusOnly) mdBuffer.push(lines[i]);
+        if (hiddenLines.has(offset + i)) continue;
+        if (!focusOnly && branch?.hasChildren && (!tasksOnly || candidates.some((task) => task.lineNo > branch.lineNo && task.lineNo < branch.end))) {
+          await flushMarkdown();
+          const row = built.createDiv({ cls: "tfa-list-parent" });
+          row.style.setProperty("--tfa-indent", `${Math.min(branch.indent * 8, 48)}px`);
+          this.renderFoldButton(row, branch, folds);
+          const label = row.createDiv({ cls: "tfa-list-label" });
+          await MarkdownRenderer.render(this.plugin.app, branch.title, label, this.file.path, this);
+        } else if (!tasksOnly && !focusOnly) mdBuffer.push(lines[i]);
         continue;
       }
       await flushMarkdown();
       totalSeconds += parsed.elapsedSeconds ?? 0;
       taskCount += 1;
       if (parsed.checked) doneCount += 1;
+      if (hiddenLines.has(offset + i)) {
+        if (offset + i === activeLineNo) {
+          runningRef.baseSeconds = parsed.elapsedSeconds ?? 0;
+          runningRef.task = { lineNo: offset + i, rawLine: lines[i], text: parsed.text };
+        }
+        continue;
+      }
       if (focusOnly && offset + i !== focusedTask?.lineNo) continue;
       if (parsed.checked && hideCompleted) continue; // посчитали, но не показываем
       visibleCount += 1;
       this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef, offset + i === activeLineNo);
-      if (this.sessionPanel.choosing && candidate && !candidate.checked) {
+      if (!focusOnly && branch?.hasChildren) {
+        this.renderFoldButton(built.lastElementChild as HTMLElement, branch, folds);
+      }
+      if (this.plugin.settings.focusSessionsEnabled && this.sessionPanel.choosing && candidate && !candidate.checked) {
         const row = built.lastElementChild as HTMLElement;
         row.classList.toggle("tfa-session-selected", this.sessionPanel.isSelected(candidate));
         const choose = row.createEl("button", {
@@ -303,7 +329,7 @@ export class FocusOverlayView extends ItemView {
     if (taskCount === 0) {
       built.createDiv({ cls: "tfa-empty", text: "No tasks yet. Add one with the button below." });
     } else if (visibleCount === 0 && !focusOnly) {
-      built.createDiv({ cls: "tfa-empty", text: "All tasks are done." });
+      built.createDiv({ cls: "tfa-empty", text: hiddenLines.size > 0 ? "Tasks are inside collapsed lists." : "All tasks are done." });
     }
 
     // Верхний sticky-блок строится последним (нужен runningRef), но встаёт первым в DOM.
@@ -322,7 +348,7 @@ export class FocusOverlayView extends ItemView {
       footer.createSpan({ cls: "tfa-count", text: `${doneCount}/${taskCount}` });
     }
     const totalTimeEl =
-      totalSeconds > 0 || runningRef.timeEl
+      totalSeconds > 0 || runningRef.task
         ? footer.createSpan({ cls: "tfa-total", text: `Σ ${formatDuration(totalSeconds)}` })
         : null;
 
@@ -341,6 +367,7 @@ export class FocusOverlayView extends ItemView {
     const scrollTop = this.contentEl.scrollTop;
     const activeElement = this.contentEl.ownerDocument.activeElement;
     const hadFocus = activeElement !== null && this.contentEl.contains(activeElement);
+    const focusFoldKey = hadFocus ? activeElement.getAttribute("data-fold-key") : null;
     const focusLabel = hadFocus ? activeElement.getAttribute("aria-label") : null;
     const focusText = hadFocus ? activeElement.textContent : null;
     this.contentEl.empty();
@@ -349,6 +376,7 @@ export class FocusOverlayView extends ItemView {
     if (hadFocus && this.addDraft === null) {
       const controls = Array.from(this.contentEl.querySelectorAll<HTMLElement>("button, input"));
       const replacement = controls.find((el) =>
+        focusFoldKey ? el.getAttribute("data-fold-key") === focusFoldKey :
         focusLabel ? el.getAttribute("aria-label") === focusLabel : el.textContent === focusText,
       ) ?? this.contentEl.querySelector<HTMLElement>(".tfa-session-primary, .tfa-check");
       replacement?.focus({ preventScroll: true });
@@ -367,7 +395,7 @@ export class FocusOverlayView extends ItemView {
     this.totalEl = totalTimeEl;
     this.totalBaseSeconds = totalSeconds;
     this.breakEl = breakButton;
-    if (this.runningTimeEl) this.tickRunningTimer();
+    if (this.runningTimeEl || this.pinnedTimeEl) this.tickRunningTimer();
 
     // Поле добавления было открыто до ререндера — восстановим с черновиком.
     if (this.addDraft !== null) {
@@ -376,8 +404,25 @@ export class FocusOverlayView extends ItemView {
     }
   }
 
+  private renderFoldButton(row: HTMLElement, branch: ListBranch, folds: Set<string>): void {
+    const collapsed = folds.has(branch.key);
+    row.addClass("tfa-foldable");
+    const button = iconButton(row, collapsed ? "chevron-right" : "chevron-down", `Toggle subtasks: ${branch.title}`);
+    button.addClass("tfa-fold");
+    button.setAttribute("data-fold-key", branch.key);
+    button.setAttribute("aria-expanded", String(!collapsed));
+    row.insertBefore(button, row.firstChild);
+    button.addEventListener("click", () => {
+      if (folds.has(branch.key)) folds.delete(branch.key);
+      else folds.add(branch.key);
+      this.closeEmojiStrip();
+      this.scheduleRender();
+    });
+  }
+
   private updatePinnedVisibility(): void {
-    if (!this.pinnedEl || !this.runningRowEl || !this.topEl) return;
+    if (!this.pinnedEl || !this.topEl) return;
+    if (!this.runningRowEl) { this.pinnedEl.hidden = false; return; }
     this.pinnedEl.hidden = this.runningRowEl.getBoundingClientRect().bottom >
       this.topEl.getBoundingClientRect().bottom;
   }
@@ -454,7 +499,7 @@ export class FocusOverlayView extends ItemView {
     if (this.plugin.timers.breakStartedAt !== null) {
       await this.plugin.timers.endBreak(); // пишет ☕-строку в заметку
     } else {
-      const session = this.plugin.focusSessions.session;
+      const session = this.plugin.settings.focusSessionsEnabled ? this.plugin.focusSessions.session : null;
       if (session && session.status !== "finished") await this.plugin.focusSessions.pause();
       await this.plugin.timers.startBreak(this.file.path); // коммитит бегущий таймер
     }
@@ -534,7 +579,7 @@ export class FocusOverlayView extends ItemView {
     // Глубина вложенности — только через CSS-переменную: инлайн-стили из JS
     // мешают темам и режутся на ревью Obsidian.
     const depth = parsed.indent.replace(/\t/g, "  ").length;
-    row.style.setProperty("--tfa-indent", `${depth * 8}px`);
+    row.style.setProperty("--tfa-indent", `${Math.min(depth * 8, 48)}px`);
 
     const checkbox = row.createEl("input", { type: "checkbox", cls: "tfa-check" });
     checkbox.checked = parsed.checked;
@@ -622,7 +667,7 @@ export class FocusOverlayView extends ItemView {
       if (this.isRunningTask(lineNo, rawLine)) {
         await this.plugin.timers.stop();
       } else {
-        const session = this.plugin.focusSessions.session;
+        const session = this.plugin.settings.focusSessionsEnabled ? this.plugin.focusSessions.session : null;
         if (session && session.status !== "finished") {
           const title = parseTaskLine(rawLine.replace(/\r$/, ""), this.palette)?.text.trim();
           const selected = session.filePath === this.file.path &&
@@ -776,7 +821,7 @@ export class FocusOverlayView extends ItemView {
   // ---------- тик ----------
 
   private tickRunningTimer(): void {
-    this.sessionPanel.tick();
+    if (this.plugin.settings.focusSessionsEnabled) this.sessionPanel.tick();
     // Секундомер перерыва (идёт и без бегущего таймера задачи).
     const breakStartedAt = this.plugin.timers.breakStartedAt;
     if (this.breakEl && breakStartedAt !== null) {
@@ -791,10 +836,10 @@ export class FocusOverlayView extends ItemView {
     }
 
     const timer = this.plugin.settings.runningTimer;
-    if (!timer || !this.runningTimeEl) return;
+    if (!timer || (!this.runningTimeEl && !this.pinnedTimeEl)) return;
     const sessionSeconds = Math.max(0, Math.floor(((timer.stoppedAt ?? Date.now()) - timer.startedAt) / 1000));
     const elapsed = formatDuration(this.runningBaseSeconds + sessionSeconds);
-    this.runningTimeEl.setText(elapsed);
+    this.runningTimeEl?.setText(elapsed);
     this.pinnedTimeEl?.setText(elapsed);
     // Суммарное время внизу тикает вместе с бегущей сессией.
     this.totalEl?.setText(`Σ ${formatDuration(this.totalBaseSeconds + sessionSeconds)}`);
@@ -802,7 +847,7 @@ export class FocusOverlayView extends ItemView {
     // Мягкое напоминание о перерыве: подсветка + один Notice за сессию.
     const { breaksEnabled, breakReminderMinutes } = this.plugin.settings;
     if (timer.stoppedAt === undefined && breaksEnabled && sessionSeconds >= breakReminderMinutes * 60) {
-      this.runningTimeEl.addClass("tfa-time-overdue");
+      this.runningTimeEl?.addClass("tfa-time-overdue");
       this.pinnedTimeEl?.addClass("tfa-time-overdue");
       if (this.lastReminderStartedAt !== timer.startedAt) {
         this.lastReminderStartedAt = timer.startedAt;

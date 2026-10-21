@@ -47,6 +47,7 @@ function activeSession(overrides: Partial<FocusSession> = {}): FocusSession {
 function createHarness(options: {
   content?: string;
   session?: FocusSession | null;
+  enabled?: boolean;
   running?: RunningTimer | null;
   patch?: (patch: Partial<PluginSettings>) => Promise<void>;
   stop?: (timers: TimerDouble) => Promise<void>;
@@ -93,7 +94,11 @@ function createHarness(options: {
     }),
   };
   const plugin = {
-    settings: { ...DEFAULT_SETTINGS, focusSession: options.session ?? null },
+    settings: {
+      ...DEFAULT_SETTINGS,
+      focusSessionsEnabled: options.enabled ?? true,
+      focusSession: options.session ?? null,
+    },
     app: {
       vault: {
         getAbstractFileByPath: vi.fn((path: string) =>
@@ -131,6 +136,143 @@ describe("FocusSessionService", () => {
     expect(harness.service.session?.tasks.map((task) => task.text)).toEqual(["First", "Third"]);
     expect(harness.service.session).toMatchObject({ status: "active", startedAt: START });
     expect(harness.timers.start).toHaveBeenCalledWith("focus.md", 1, "- [ ] First");
+  });
+
+  test("disabling pauses an active session and enabling leaves it paused", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(START + 10_000);
+    const harness = createHarness({
+      session: activeSession(),
+      running: { filePath: "focus.md", lineNo: 1, lineText: "- [ ] First", startedAt: START },
+    });
+
+    await harness.service.setEnabled(false);
+
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(false);
+    expect(harness.service.session).toMatchObject({
+      status: "paused",
+      activeSince: null,
+      elapsedMs: 10_000,
+    });
+    expect(harness.timers.stop).toHaveBeenCalledTimes(1);
+    expect(harness.timers.startBreak).not.toHaveBeenCalled();
+
+    await harness.service.setEnabled(true);
+
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(true);
+    expect(harness.service.session?.status).toBe("paused");
+    expect(harness.timers.start).not.toHaveBeenCalled();
+  });
+
+  test("blocks session progression while disabled", async () => {
+    const harness = createHarness({
+      enabled: false,
+      session: activeSession({ status: "paused", activeSince: null, elapsedMs: 5_000 }),
+    });
+    const selected = scanFocusTasks(CONTENT).slice(0, 1);
+
+    await expect(harness.service.start("focus.md", selected)).rejects.toThrow("disabled");
+    await expect(harness.service.resume()).rejects.toThrow("disabled");
+    await harness.service.sync("focus.md", CONTENT.replace("- [ ] First", "- [x] First"));
+    await harness.service.refresh("focus.md");
+
+    expect(harness.service.session).toMatchObject({
+      status: "paused",
+      elapsedMs: 5_000,
+      tasks: [expect.objectContaining({ done: false })],
+    });
+    expect(harness.plugin.app.vault.read).not.toHaveBeenCalled();
+    expect(harness.plugin.patchSettings).not.toHaveBeenCalled();
+    expect(harness.timers.start).not.toHaveBeenCalled();
+  });
+
+  test("does not stop an ordinary timer when a paused session is disabled", async () => {
+    const running = {
+      filePath: "other.md",
+      lineNo: 2,
+      lineText: "- [ ] Independent",
+      startedAt: START,
+    };
+    const harness = createHarness({
+      session: activeSession({ status: "paused", activeSince: null, elapsedMs: 5_000 }),
+      running,
+    });
+
+    await harness.service.setEnabled(false);
+
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(false);
+    expect(harness.timers.running).toBe(running);
+    expect(harness.timers.stop).not.toHaveBeenCalled();
+  });
+
+  test("does not stop an unselected timer from the session note when disabled", async () => {
+    const running = {
+      filePath: "focus.md",
+      lineNo: 2,
+      lineText: "- [ ] Second",
+      startedAt: START,
+    };
+    const harness = createHarness({
+      session: activeSession({ status: "paused", activeSince: null, elapsedMs: 5_000 }),
+      running,
+    });
+
+    await harness.service.setEnabled(false);
+
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(false);
+    expect(harness.timers.running).toBe(running);
+    expect(harness.timers.stop).not.toHaveBeenCalled();
+  });
+
+  test("retries a selected timer save before completing disable", async () => {
+    let failStop = true;
+    vi.spyOn(Date, "now").mockReturnValue(START + 10_000);
+    const harness = createHarness({
+      session: activeSession(),
+      running: { filePath: "focus.md", lineNo: 1, lineText: "- [ ] First", startedAt: START },
+      stop: async (timers) => {
+        if (failStop) {
+          failStop = false;
+          throw new Error("task save failed");
+        }
+        timers.running = null;
+      },
+    });
+
+    await expect(harness.service.setEnabled(false)).rejects.toThrow("task save failed");
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(true);
+    expect(harness.service.session).toMatchObject({ status: "paused", elapsedMs: 10_000 });
+    expect(harness.timers.running).not.toBeNull();
+
+    await harness.service.setEnabled(false);
+
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(false);
+    expect(harness.timers.running).toBeNull();
+    expect(harness.timers.stop).toHaveBeenCalledTimes(2);
+  });
+
+  test("keeps the paused session recoverable when disabling cannot be saved", async () => {
+    let failDisable = true;
+    vi.spyOn(Date, "now").mockReturnValue(START + 10_000);
+    const harness = createHarness({
+      session: activeSession(),
+      running: { filePath: "focus.md", lineNo: 1, lineText: "- [ ] First", startedAt: START },
+      patch: async (patch) => {
+        if (failDisable && patch.focusSessionsEnabled === false) {
+          failDisable = false;
+          throw new Error("disk unavailable");
+        }
+      },
+    });
+
+    await expect(harness.service.setEnabled(false)).rejects.toThrow("disk unavailable");
+
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(true);
+    expect(harness.service.session).toMatchObject({ status: "paused", elapsedMs: 10_000 });
+    expect(harness.timers.running).toBeNull();
+
+    await harness.service.setEnabled(false);
+    expect(harness.plugin.settings.focusSessionsEnabled).toBe(false);
+    expect(harness.service.session?.status).toBe("paused");
   });
 
   test("rejects invalid goals and stale checked selections", async () => {

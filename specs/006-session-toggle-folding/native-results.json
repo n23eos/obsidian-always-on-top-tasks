@@ -1,0 +1,98 @@
+[
+  {
+    "name": "native overlay attached",
+    "pass": true
+  },
+  {
+    "name": "six native task rows",
+    "pass": true
+  },
+  {
+    "name": "three accessible folding controls",
+    "pass": true
+  },
+  {
+    "name": "descendants hidden with native renderer",
+    "pass": true
+  },
+  {
+    "name": "folding leaves markdown untouched",
+    "pass": true
+  },
+  {
+    "name": "expanding restores task rows",
+    "pass": true
+  },
+  {
+    "name": "installed settings tab found",
+    "pass": true
+  },
+  {
+    "name": "disabled session UI absent",
+    "pass": true
+  },
+  {
+    "name": "enabled session UI present",
+    "pass": true
+  },
+  {
+    "name": "native current-task filtering",
+    "pass": true
+  },
+  {
+    "name": "disable pauses session and stops selected timer",
+    "pass": true
+  },
+  {
+    "name": "disable removes filtering",
+    "pass": true
+  },
+  {
+    "name": "disabled flag survives native reload",
+    "pass": true
+  },
+  {
+    "name": "paused session survives native reload exactly",
+    "pass": true
+  },
+  {
+    "name": "reenable retains pause",
+    "pass": true
+  },
+  {
+    "name": "explicit resume starts selected task",
+    "pass": true
+  },
+  {
+    "name": "hidden running child has visible pinned stop",
+    "pass": true
+  },
+  {
+    "name": "hidden task timer saves successfully",
+    "pass": true
+  },
+  {
+    "name": "fold survives timer update",
+    "pass": true
+  },
+  {
+    "name": "plain list parent collapses completed child",
+    "pass": true
+  },
+  {
+    "name": "nested child folds grandchild only",
+    "pass": true
+  },
+  {
+    "name": "original settings restored",
+    "pass": true
+  },
+  {
+    "name": "no synthetic session or timer remains",
+    "pass": true
+  },
+  {
+    "name": "test note removed to trash",
+    "pass": true
+  }
+]

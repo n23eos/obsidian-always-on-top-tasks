@@ -86,6 +86,11 @@ session or its latest summary, so these survive an Obsidian restart.
 
 ## Focus sessions
 
+Turn **Focus sessions** off in settings to use the overlay without session
+controls or filtering. An unfinished session is kept on pause; turn the feature
+back on and choose **Resume focus** when you are ready.
+
+
 Open the overlay and press **Start 3-task session** to work through a small
 selection of open tasks. Use the **1 / 3 / 5** presets, enter a goal from 1 to 20,
 or press **Choose tasks** to select individual tasks before starting.
@@ -166,7 +171,7 @@ the place is remembered), width of the docked overlay, opacity.
 **Timer and breaks** — the running timer in the main window's status bar,
 breaks and the reminder threshold.
 
-**Focus sessions**: default task goal and whether to show only the current task.
+**Focus sessions**: enable or disable sessions, set the default task goal, and choose whether to show only the current task.
 
 **Appearance** — font size, hide completed tasks, tasks only (skip the prose
 between tasks), the emoji status button, your own status emoji palette, the
@@ -315,3 +320,13 @@ cases retain Obsidian's normal behavior, which can leave the process running aft
 closing popouts. Issue Quit again if needed. This conservative scope avoids
 interfering with another window's save or cancellation. See the
 [safety and restart checks](specs/005-safe-quit/verification.md).
+
+## Collapse nested tasks
+
+Use the arrow beside a parent task or list item to hide or show its descendants.
+The arrow also works with Enter and Space. Fold state stays while the overlay
+view is open and survives task updates. The note itself is unchanged.
+
+Hidden tasks still contribute to totals. If a hidden task has a running timer,
+its stop button remains in the pinned header. Current-task session mode shows
+the selected task regardless of folds.
