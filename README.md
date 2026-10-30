@@ -1,6 +1,21 @@
 # Always-on-Top Tasks
 
-**Always-on-Top Tasks is an Obsidian plugin that pins one note above every other window as a compact, semi-transparent overlay docked to the edge of the screen.** Every task line gets its own stopwatch: press play, work, press stop, and the elapsed time is appended to the line as ⏱️ H:MM:SS, with only one timer allowed to run at a time. A one-click emoji palette marks a line as in progress, blocked, deferred or done, and nested tasks keep their markdown indentation in the overlay. All of it is written back into the markdown file, so the time data stays plain text inside the vault and any assistant with access to the notes can read it. Desktop only, TypeScript bundled with esbuild.
+Keep one note visible in a compact, always-on-top panel for Obsidian. Organize
+nested tasks, add subtasks from the panel, track time, and mark progress with
+emoji. Tasks and elapsed time stay in your Markdown note.
+
+## Features
+
+- **Stay focused.** Pin the panel above other windows, dock it to an edge, or move and resize it freely.
+- **Keep the hierarchy.** Expand or collapse branches and add subtasks with the hover + button. Enter saves; Escape cancels.
+- **Track one task at a time.** Start a stopwatch with the play button. Stop it to append elapsed time to the task; later work adds to the same total.
+- **Mark progress.** Choose an emoji status, complete tasks, and hide finished work when you want a shorter list.
+- **Make it comfortable.** Use the bottom slider for transparency. Click the eye to switch to text size; click the magnifying glass to switch back. Both settings survive a restart.
+- **Take breaks.** Use the optional break timer, or enable Focus sessions to work through a selected group of tasks.
+- **Hide content quickly.** Use the header privacy control when you need to conceal the note.
+
+Desktop only. The panel uses Obsidian's popout window; always-on-top behavior
+can vary by operating system and window manager.
 
 <div align="center">
 
@@ -13,56 +28,54 @@
 **You lose the thread when several projects are open at once.** The moment a
 browser, a terminal or a chat window covers your task list, the current task is
 gone from your head too. The overlay stays above every other window, including
-fullscreen apps, pinned to one half of the monitor — so what you are doing right
+fullscreen apps, pinned to one half of the monitor - so what you are doing right
 now never leaves your field of view.
 
 **You do not know where the hours actually went.** Each task line has its own
 stopwatch: press ▶, work, press ⏹. The elapsed time is appended to the line as
 `⏱️ H:MM:SS`, sessions add up to the second, and only one timer can run at a
-time — which is the entire point of focusing.
+time - which is the entire point of focusing.
 
 **Your time data is locked inside somebody else's app.** Here it is stored as
 plain text inside your own vault, so anything that can read the vault can read
-the numbers — including an AI agent. Ask Claude (or any assistant with access to
+the numbers - including an AI agent. Ask Claude (or any assistant with access to
 your notes) where last week went, and it can answer from the note itself. No
 export, no API, no separate database.
 
 **A flat checklist does not match the shape of real work.** Nested tasks keep
 their markdown indentation in the overlay, and a one-click emoji palette marks
-what is in progress, blocked, deferred or done — right in the line, readable in
+what is in progress, blocked, deferred or done - right in the line, readable in
 any editor.
 
 ## What it looks like
 
-![The overlay pinned above another window](docs/screenshots/overlay-pinned.png)
+### Focus and time
 
-*The overlay is docked to the right edge and floats above whatever you are
-working in. It never hides behind the window you switch to.*
+![Nested tasks and a running stopwatch in the focus panel](docs/screenshots/showcase-focus.jpg)
 
-![The pinned header showing the running task](docs/screenshots/running-task.png)
+Keep the next step visible, follow a task's nested structure, and track elapsed
+time without opening a separate timer app. Stopping the timer writes the total
+back to the task in your note.
 
-*While a timer runs, a sticky header keeps the current task and its ticking time
-at the top, no matter how far the note is scrolled. The footer counts finished
-tasks and the total time of the note.*
+### Add subtasks from the panel
 
-![The inline emoji status palette](docs/screenshots/emoji-status.png)
+![The inline editor for adding a subtask](docs/screenshots/showcase-subtasks.jpg)
 
-*One click on the status button opens an inline palette. The chosen emoji is
-written into the task line, so the status is visible in plain Obsidian too.*
+Hover over a task and click **+** to add its next step. Press **Enter** to save
+or **Escape** to cancel. Fold a branch to keep a long note manageable.
 
-![The break stopwatch running in the footer](docs/screenshots/breaks.png)
+### Transparency and text size
 
-*The optional ☕ button stops the task timer and starts a break stopwatch. Total
-break time accumulates in the note, and a long work session gets a gentle
-reminder instead of a forced pomodoro stop.*
+![The bottom slider in text-size mode](docs/screenshots/showcase-appearance.jpg)
 
-![The same note as raw markdown](docs/screenshots/markdown-source.png)
+The quiet bottom slider adjusts window transparency. Click the **eye** to
+switch to text size, then click the **magnifying glass** to return. The two
+settings are saved independently.
 
-*The same note in a normal editor. No hidden database, no sidecar files — which
-is what makes the data readable by other tools and by AI agents.*
-
-<sub>Screenshots are rendered from the plugin's own `styles.css` by
-[`docs/screenshots/render.mjs`](docs/screenshots/render.mjs).</sub>
+These presentation screenshots use the current plugin view and styles in a
+browser fixture with English demo tasks. They are not captures of a private
+vault or native Obsidian window. Reproduction instructions are in
+[the screenshot guide](docs/screenshots/README.md).
 
 ## Data format
 
@@ -91,9 +104,9 @@ controls or filtering. An unfinished session is kept on pause; turn the feature
 back on and choose **Resume focus** when you are ready.
 
 
-Open the overlay and press **Start 3-task session** to work through a small
-selection of open tasks. Use the **1 / 3 / 5** presets, enter a goal from 1 to 20,
-or press **Choose tasks** to select individual tasks before starting.
+Focus sessions are off by default. Enable them in settings, then open the
+overlay and set a task goal from 1 to 20, or press **Choose tasks** to select
+individual tasks before starting.
 The note determines their order; tasks already completed do not count.
 
 - **One task at a time.** The current selected task stays visible. **Up next**
@@ -151,9 +164,9 @@ Copy `manifest.json`, `main.js` and `styles.css` into
 |---|---|
 | **Open current note as focus overlay** | Pins the active note; the path is remembered for next time |
 | **Hide or show overlay content** | Replaces the overlay contents with a neutral placeholder; timers keep running. Bind a hotkey for quick access. |
-| **Toggle focus overlay** | Shows or hides the overlay — worth binding to a hotkey. The target icon in the ribbon does the same |
+| **Toggle focus overlay** | Shows or hides the overlay - worth binding to a hotkey. The target icon in the ribbon does the same |
 | **Toggle always on top** | Lets the overlay drop behind other windows for a moment without closing it; the pin button in the overlay header does the same |
-| **Stop the running timer** | Commits the session from anywhere — the status bar item in the main window does the same on click |
+| **Stop the running timer** | Commits the session from anywhere - the status bar item in the main window does the same on click |
 | **Toggle completed tasks in the overlay** | Hides or shows checked tasks; the eye button in the overlay header does the same |
 
 None of the commands ships with a default hotkey; bind your own in
@@ -165,20 +178,20 @@ Grouped into five sections. On Obsidian 1.13 and later every setting is also
 found by the settings search; older versions get the same tab drawn the classic
 way, so the plugin keeps working from Obsidian 1.4.
 
-**Overlay window** — the note to pin (with a file picker), position (docked to
+**Overlay window** - the note to pin (with a file picker), position (docked to
 the right or left edge, or *free*: the window stays wherever you drag it, and
 the place is remembered), width of the docked overlay, full-height toggle, custom height (200-1200 px), opacity.
 
-**Timer and breaks** — the running timer in the main window's status bar,
+**Timer and breaks** - the running timer in the main window's status bar,
 breaks and the reminder threshold.
 
 **Focus sessions**: off by default. Enable sessions, set the default task goal, and choose whether to show only the current task. Session setup uses one labeled task-count field.
 
-**Appearance** — font size, hide completed tasks, tasks only (skip the prose
+**Appearance** - font size, hide completed tasks, tasks only (skip the prose
 between tasks), the emoji status button, your own status emoji palette, the
 ribbon icon.
 
-**Advanced** — two experimental switches, click-through and never-take-focus,
+**Advanced** - two experimental switches, click-through and never-take-focus,
 off by default, and a reset to defaults that keeps the pinned note and a
 running timer.
 
@@ -228,7 +241,7 @@ The command supports Obsidian hotkeys; it does not add a global shortcut or Win+
 ```bash
 npm install
 npm run dev     # watch build
-npm test        # vitest — unit tests for the pure core
+npm test        # vitest - unit tests for the pure core
 npm run check   # tsc --noEmit
 npm run lint    # typescript-eslint + eslint-plugin-obsidianmd, the rules ObsidianReviewBot runs
 ```
@@ -277,8 +290,8 @@ The `@electron/remote` runtime resolver is adapted from
 
 ## Also in this repository: SimpleFocus
 
-A native macOS menu bar app with the same idea — a floating task panel above all
-windows — but without Obsidian, and with a true non-activating panel that never
+A native macOS menu bar app with the same idea - a floating task panel above all
+windows - but without Obsidian, and with a true non-activating panel that never
 steals keyboard focus. See [docs/simplefocus.md](docs/simplefocus.md).
 
 ## License
