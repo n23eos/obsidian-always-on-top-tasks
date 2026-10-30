@@ -31,9 +31,10 @@ describe("fold interaction lifecycle", () => {
     };
     const row = { createEl: () => button, addClass() {}, insertBefore() {} };
     internal.renderFoldButton(row as unknown as HTMLElement,
-      { lineNo: 0, end: 3, indent: 0, title: "Parent", key: "parent", hasChildren: true }, new Set());
+      { lineNo: 0, end: 3, indent: 0, depth: 0, title: "Parent", key: "parent", hasChildren: true }, new Set());
     click();
-    await vi.advanceTimersByTimeAsync(350);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(render).toHaveBeenCalledOnce();
     render.mockClear();
     view.requestRender();
     await vi.advanceTimersByTimeAsync(350);

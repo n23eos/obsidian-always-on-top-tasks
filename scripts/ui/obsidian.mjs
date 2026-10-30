@@ -38,6 +38,7 @@ export const MarkdownRenderer = {
 };
 export function setIcon(el, name) {
   const paths = {
+    plus: '<path d="M12 5v14M5 12h14"/>',
     "chevron-right": '<path d="m9 18 6-6-6-6"/>',
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
     play: '<polygon points="6 3 20 12 6 21 6 3"/>',

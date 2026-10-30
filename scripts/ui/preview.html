@@ -12,7 +12,7 @@ button,input { font:inherit; color:inherit; } nav button { padding:8px 12px; }
 .tfa-check { accent-color:var(--interactive-accent); }
 #status { padding:12px 0; } #notice,#errors { max-width:680px; white-space:pre-wrap; } #errors { color:#e87e7e; } pre { font-size:12px; max-width:800px; white-space:pre-wrap; }
 </style>
-<nav><label><input type="checkbox" id="sessions">Focus sessions</label><button id="theme">Светлая / тёмная</button><button id="width">Ширина 280 / 340</button><select id="size" aria-label="Ширина панели"><option>240</option><option>280</option><option selected>340</option><option>560</option></select><button id="fail">Ошибка следующей записи</button><button id="reload">Перезапуск плагина</button><button id="reset">Сбросить стенд</button></nav>
+<nav><label><input type="checkbox" id="sessions">Focus sessions</label><button id="theme">Светлая / тёмная</button><button id="width">Ширина 280 / 340</button><select id="size" aria-label="Ширина панели"><option>240</option><option>280</option><option selected>340</option><option>560</option></select><button id="fail">Ошибка следующей записи</button><button id="reload">Перезапуск плагина</button><button id="reset">Сбросить стенд</button><button id="hierarchy-qa">Проверить иерархию</button><button id="subtask-qa">Проверить подзадачи</button></nav><pre id="qa-result"></pre>
 <div class="window"><div id="overlay"></div></div><div id="status"></div>
 <p id="notice" role="status"></p><p id="errors" role="alert"></p><details><summary>Тестовая заметка</summary><pre id="source"></pre></details>
 <script type="module" src="/bundle.js"></script></html>

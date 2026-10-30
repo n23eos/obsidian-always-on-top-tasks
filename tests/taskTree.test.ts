@@ -27,6 +27,10 @@ describe("nested list folding", () => {
      expect(tree.get(0)?.end).toBe(2);
      expect(tree.get(1)?.indent).toBe(4);
   });
+  it("reports logical depth for mixed tab and space indentation", () => {
+    const tree = scanListBranches("- Root\n  - Child\n\t- Grandchild\n   - Sibling\n - Last");
+    expect([...tree.values()].map((branch) => branch.depth)).toEqual([0, 1, 2, 2, 1]);
+  });
   it("does not hide children behind a filtered-out completed parent", () => {
      const tree = scanListBranches("- [x] Parent\n  - [ ] Child");
      expect(foldedLines(tree, new Set([tree.get(0)!.key]), new Set([0])).size).toBe(0);
@@ -40,6 +44,22 @@ describe("nested list folding", () => {
   it("keeps deeply nested identity size linear", () => {
     const tree = scanListBranches(Array.from({ length: 30 }, (_, i) => `${"  ".repeat(i)}- [ ] Task`).join("\n"));
     expect(tree.get(29)!.key.length).toBeLessThan(500);
+  });
+
+  it("does not evaluate nested folds already hidden by a collapsed ancestor", () => {
+    const tree = scanListBranches("- Root\n  - Child\n    - Grandchild");
+    class CountingSet extends Set<string> {
+      checks = 0;
+
+      override has(value: string): boolean {
+        this.checks += 1;
+        return super.has(value);
+      }
+    }
+    const collapsed = new CountingSet([...tree.values()].map((branch) => branch.key));
+
+    expect([...foldedLines(tree, collapsed)]).toEqual([1, 2]);
+    expect(collapsed.checks).toBe(1);
   });
 
 });

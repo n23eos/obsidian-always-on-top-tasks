@@ -4,6 +4,7 @@ export interface ListBranch {
   lineNo: number;
   end: number;
   indent: number;
+  depth: number;
   title: string;
   key: string;
   hasChildren: boolean;
@@ -47,7 +48,7 @@ export function scanListBranches(content: string, palette?: readonly string[]): 
     const occurrence = occurrences.get(identity) ?? 0;
     occurrences.set(identity, occurrence + 1);
     const branch: ListBranch = {
-      lineNo: i, end: lines.length, indent, title,
+      lineNo: i, end: lines.length, indent, depth: stack.length, title,
       key: `${identity}:${occurrence}`, hasChildren: false,
     };
     result.set(i, branch);
@@ -58,9 +59,12 @@ export function scanListBranches(content: string, palette?: readonly string[]): 
 
 export function foldedLines(branches: Map<number, ListBranch>, collapsed: ReadonlySet<string>, hiddenParents: ReadonlySet<number> = new Set()): Set<number> {
   const hidden = new Set<number>();
+  let hiddenUntil = 0;
   for (const branch of branches.values()) {
+    if (branch.lineNo < hiddenUntil) continue;
     if (!branch.hasChildren || !collapsed.has(branch.key) || hiddenParents.has(branch.lineNo)) continue;
     for (let line = branch.lineNo + 1; line < branch.end; line++) hidden.add(line);
+    hiddenUntil = branch.end;
   }
   return hidden;
 }

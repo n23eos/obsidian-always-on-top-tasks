@@ -168,7 +168,8 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
   align-items: center;
   gap: 6px;
   /* глубина вложенности приходит из JS одной переменной, а не инлайн-стилем */
-  padding: 2px 2px 2px calc(2px + var(--tfa-indent, 0px));
+  padding: 2px 2px 2px calc(26px + var(--tfa-indent, 0px));
+  position: relative;
   border-radius: 6px;
   min-height: 36px;
 }
@@ -194,51 +195,21 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
   overflow-wrap: anywhere;
 }
 
-/* Narrow panels give task text a full row above the timer controls. */
-@container (max-width: 280px) {
+/* Only real elapsed time needs a second line on narrow panels. */
+@container (max-width: 380px) {
   .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) {
     display: grid;
-    grid-template-columns: 16px 30px minmax(0, 1fr) 30px;
+    grid-template-columns: 16px 30px minmax(0, 1fr);
     row-gap: 0;
-    padding-top: 6px;
-    padding-bottom: 6px;
   }
-
-  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-check {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-emoji {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
+  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-check { grid-column: 1; grid-row: 1; }
+  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-emoji { grid-column: 2; grid-row: 1; }
   .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-text,
-  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-edit {
-    grid-column: 3 / 5;
-    grid-row: 1;
-  }
-
-  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-time {
-    grid-column: 3;
-    grid-row: 2;
-  }
-
-  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-timer {
-    grid-column: 4;
-    grid-row: 2;
-    justify-self: end;
-  }
-
+  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-edit { grid-column: 3; grid-row: 1; }
+  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)) .tfa-time { grid-column: 3; grid-row: 2; }
   .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)):not(:has(.tfa-emoji)) .tfa-text,
-  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)):not(:has(.tfa-emoji)) .tfa-edit {
-    grid-column: 2 / 5;
-  }
-
-  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)):not(:has(.tfa-emoji)) .tfa-time {
-    grid-column: 2 / 4;
-  }
+  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)):not(:has(.tfa-emoji)) .tfa-edit,
+  .tfa-overlay .tfa-task:has(.tfa-time:not(:empty)):not(:has(.tfa-emoji)) .tfa-time { grid-column: 2 / 4; }
 }
 
 /* время — синим, моноширинно, секунды тикают */
@@ -696,25 +667,69 @@ body.is-popout-window.is-hidden-frameless:has(.tfa-overlay) .tfa-header {
   }
 }
 
-/* Folding controls keep their own column even in narrow task grids. */
-.tfa-overlay .tfa-foldable {
-  position: relative;
-  margin-left: 28px;
-}
+/* Every row reserves the same gutter, including leaves without a toggle. */
 
 .tfa-overlay .tfa-fold {
   position: absolute;
-  left: -28px;
+  left: var(--tfa-indent, 0px);
   top: 4px;
-  width: 28px;
+  width: 24px;
+  min-width: 24px;
   height: 28px;
 }
 
 .tfa-overlay .tfa-list-parent {
   min-height: 36px;
-  padding: 2px 2px 2px var(--tfa-indent, 0px);
+  position: relative;
+  padding: 2px 2px 2px calc(26px + var(--tfa-indent, 0px));
 }
 
 .tfa-overlay .tfa-list-label p {
   margin: 6px 0;
+}
+
+/* Hover actions float over the right edge without creating an empty row. */
+.tfa-overlay .tfa-task-actions {
+  display: flex;
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  gap: 2px;
+  border-radius: 6px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tfa-overlay .tfa-task .tfa-task-actions .tfa-btn {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tfa-overlay .tfa-task:hover .tfa-task-actions .tfa-btn,
+  .tfa-overlay .tfa-task:focus-within .tfa-task-actions .tfa-btn,
+  .tfa-overlay .tfa-task .tfa-task-actions .tfa-timer-on {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.tfa-overlay .tfa-subtask-editor {
+  padding: 8px;
+  margin: 2px 0 8px 26px;
+  border-left: 2px solid var(--interactive-accent);
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+.tfa-overlay .tfa-subtask-editor .tfa-input { width: 100%; }
+.tfa-overlay .tfa-subtask-controls { display: flex; gap: 6px; margin-top: 6px; }
+.tfa-overlay .tfa-subtask-controls button { min-height: 28px; }
+
+.tfa-overlay .tfa-task:hover .tfa-task-actions,
+.tfa-overlay .tfa-task:focus-within .tfa-task-actions,
+.tfa-overlay .tfa-task.tfa-running .tfa-task-actions {
+  background: var(--background-primary);
+}
+.tfa-overlay .tfa-task.tfa-running { padding-right: 66px; }
+.tfa-overlay .tfa-task .tfa-time:empty { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .tfa-overlay .tfa-task { padding-right: 66px; }
+  .tfa-overlay .tfa-task-actions { background: var(--background-primary); }
 }

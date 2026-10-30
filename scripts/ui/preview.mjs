@@ -88,3 +88,19 @@ sessionsToggle.checked = plugin.settings.focusSessionsEnabled;
 sessionsToggle.onchange = async () => {
   await plugin.updateSettings({ focusSessionsEnabled: sessionsToggle.checked });
 };
+
+const { runHierarchyQA } = await import('./hierarchy-qa.mjs');
+document.querySelector('#hierarchy-qa').onclick = async () => {
+  const result = document.querySelector('#qa-result');
+  try {
+    result.textContent = JSON.stringify(await runHierarchyQA({ view, plugin, getContent: () => content, setContent: value => { content = value; localStorage.setItem("focus-preview-note", content); document.querySelector("#source").textContent = content; } }));
+  } catch (error) { result.textContent = `FAIL: ${error.message}`; }
+};
+
+const { runSubtaskQA } = await import('./subtask-qa.mjs');
+document.querySelector('#subtask-qa').onclick = async () => {
+  const result = document.querySelector('#qa-result');
+  try {
+    result.textContent = JSON.stringify(await runSubtaskQA({ view, plugin, getContent: () => content, setContent: value => { content = value; localStorage.setItem("focus-preview-note", content); document.querySelector("#source").textContent = content; }, failNextWrite: () => { failWrite = true; } }));
+  } catch (error) { result.textContent = `FAIL: ${error.message}`; }
+};

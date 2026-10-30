@@ -21,6 +21,7 @@ import {
   STATUS_EMOJIS,
   type ParsedTaskLine,
 } from "../core/taskLine";
+import { insertSubtask } from "../core/insertSubtask";
 import { locateLine } from "../core/timer";
 import { notify } from "../notify";
 import { scanFocusTasks } from "../core/focusSession";
@@ -91,6 +92,7 @@ export class FocusOverlayView extends ItemView {
   private addDraft: string | null = null;
   /** Строка в режиме инлайн-редактирования (ререндер откладывается). */
   private editingLineNo: number | null = null;
+  private dismissSubtaskEditor: (() => void) | null = null;
   /** Палитра статусов из настроек — фиксируется на время рендера. */
   private palette: readonly string[] = STATUS_EMOJIS;
   private runningLineNo: number | null = null;
@@ -124,6 +126,7 @@ export class FocusOverlayView extends ItemView {
   }
 
   async setState(state: OverlayViewState, result: ViewStateResult): Promise<void> {
+    this.dismissSubtaskEditor?.();
     this.privacyHidden = state.privacyHidden === true;
     const byPath = state.filePath
       ? this.plugin.app.vault.getAbstractFileByPath(state.filePath)
@@ -142,6 +145,7 @@ export class FocusOverlayView extends ItemView {
   }
 
   setContentHidden(hidden: boolean): void {
+    this.dismissSubtaskEditor?.();
     this.privacyHidden = hidden;
     // Dismiss transient controls before rendering so they cannot delay privacy.
     this.openStripLineNo = null;
@@ -200,6 +204,7 @@ export class FocusOverlayView extends ItemView {
   }
 
   onClose(): Promise<void> {
+    this.dismissSubtaskEditor?.();
     this.closed = true;
     this.renderVersion++;
     this.resizeObserver?.disconnect();
@@ -220,7 +225,7 @@ export class FocusOverlayView extends ItemView {
     this.scheduleRender();
   }
 
-  private scheduleRender(): void {
+  private scheduleRender(delayMs = RENDER_DEBOUNCE_MS): void {
     if (this.closed) return;
     if (this.renderTimeout !== null) window.clearTimeout(this.renderTimeout);
     this.renderTimeout = window.setTimeout(() => {
@@ -230,11 +235,12 @@ export class FocusOverlayView extends ItemView {
         return;
       }
       safe(this.render());
-    }, RENDER_DEBOUNCE_MS);
+    }, delayMs);
   }
 
   private async render(): Promise<void> {
     if (this.closed) return;
+    if (this.dismissSubtaskEditor) { this.pendingRender = true; return; }
     // Рендер асинхронный: строим во временный контейнер и подменяем DOM одним
     // куском. Устаревшая версия (пришёл новый рендер) молча выбрасывается.
     const version = ++this.renderVersion;
@@ -311,6 +317,7 @@ export class FocusOverlayView extends ItemView {
     let doneCount = 0;
     let visibleCount = 0;
 
+    let descendantCursor = 0;
     let mdBuffer: string[] = [];
     const flushMarkdown = async () => {
       const text = mdBuffer.join("\n").trim();
@@ -321,15 +328,18 @@ export class FocusOverlayView extends ItemView {
     };
 
     for (let i = 0; i < lines.length; i++) {
+      if (version !== this.renderVersion) return;
       const candidate = candidateByLine.get(offset + i);
       const parsed = candidate ? parseTaskLine(lines[i].replace(/\r$/, ""), this.palette) : null;
       const branch = branches.get(offset + i);
+      while (descendantCursor < candidates.length && candidates[descendantCursor].lineNo <= offset + i) descendantCursor++;
+      const hasTaskDescendant = branch && descendantCursor < candidates.length && candidates[descendantCursor].lineNo < branch.end;
       if (!parsed) {
         if (hiddenLines.has(offset + i)) continue;
-        if (!focusOnly && branch?.hasChildren && (!tasksOnly || candidates.some((task) => task.lineNo > branch.lineNo && task.lineNo < branch.end))) {
+        if (!focusOnly && branch?.hasChildren && (!tasksOnly || hasTaskDescendant)) {
           await flushMarkdown();
           const row = built.createDiv({ cls: "tfa-list-parent" });
-          row.style.setProperty("--tfa-indent", `${Math.min(branch.indent * 8, 48)}px`);
+          row.style.setProperty("--tfa-indent", `${Math.min(branch.depth * 16, 64)}px`);
           this.renderFoldButton(row, branch, folds);
           const label = row.createDiv({ cls: "tfa-list-label" });
           await MarkdownRenderer.render(this.plugin.app, branch.title, label, this.file.path, this);
@@ -350,7 +360,7 @@ export class FocusOverlayView extends ItemView {
       if (focusOnly && offset + i !== focusedTask?.lineNo) continue;
       if (parsed.checked && hideCompleted) continue; // посчитали, но не показываем
       visibleCount += 1;
-      this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef, offset + i === activeLineNo);
+      this.renderTaskRow(built, offset + i, lines[i], parsed, runningRef, offset + i === activeLineNo, focusOnly ? 0 : (branch?.depth ?? 0));
       if (!focusOnly && branch?.hasChildren) {
         this.renderFoldButton(built.lastElementChild as HTMLElement, branch, folds);
       }
@@ -461,7 +471,7 @@ export class FocusOverlayView extends ItemView {
       if (folds.has(branch.key)) folds.delete(branch.key);
       else folds.add(branch.key);
       this.closeEmojiStrip();
-      this.scheduleRender();
+      this.scheduleRender(0);
     });
   }
 
@@ -620,14 +630,13 @@ export class FocusOverlayView extends ItemView {
     parsed: ParsedTaskLine,
     runningRef: RunningRef,
     isRunning: boolean,
+    depth: number,
   ): void {
     const row = container.createDiv({
       cls: `tfa-task${parsed.checked ? " tfa-done" : ""}${isRunning ? " tfa-running" : ""}`,
     });
-    // Глубина вложенности — только через CSS-переменную: инлайн-стили из JS
-    // мешают темам и режутся на ревью Obsidian.
-    const depth = parsed.indent.replace(/\t/g, "  ").length;
-    row.style.setProperty("--tfa-indent", `${Math.min(depth * 8, 48)}px`);
+    // Use logical list levels, independent of source whitespace width.
+    row.style.setProperty("--tfa-indent", `${Math.min(depth * 16, 64)}px`);
 
     const checkbox = row.createEl("input", { type: "checkbox", cls: "tfa-check" });
     checkbox.checked = parsed.checked;
@@ -663,18 +672,102 @@ export class FocusOverlayView extends ItemView {
     });
 
     const pending = isRunning && this.plugin.timers.running?.stoppedAt !== undefined;
-    const timerButton = iconButton(row, pending ? "rotate-cw" : isRunning ? "square" : "play",
+    const actions = row.createDiv({ cls: "tfa-task-actions" });
+    const timerButton = iconButton(actions, pending ? "rotate-cw" : isRunning ? "square" : "play",
       pending ? "Retry save" : isRunning ? "Stop timer" : "Start timer");
     if (pending) row.addClass("tfa-pending-save");
     timerButton.addClass("tfa-timer");
     if (isRunning) timerButton.addClass("tfa-timer-on");
     timerButton.addEventListener("click", () => safe(this.onToggleTimer(lineNo, rawLine)));
 
+    const addChild = iconButton(actions, "plus", `Add subtask: ${parsed.text}`);
+    addChild.addClass("tfa-add-child");
+    addChild.addEventListener("click", () => this.openSubtaskInput(row, lineNo, rawLine));
+
     if (isRunning) {
       runningRef.timeEl = timeEl;
       runningRef.baseSeconds = baseSeconds;
       runningRef.task = { lineNo, rawLine, text: parsed.text };
     }
+  }
+
+  private openSubtaskInput(row: HTMLElement, lineNo: number, rawLine: string): void {
+    if (!this.file || this.editingLineNo !== null) return;
+    const file = this.file;
+    this.closeEmojiStrip();
+    this.renderVersion++;
+    this.editingLineNo = lineNo;
+    const editor = createDiv({ cls: "tfa-subtask-editor" });
+    row.insertAdjacentElement("afterend", editor);
+    const input = editor.createEl("input", {
+      cls: "tfa-input",
+      attr: { placeholder: "New subtask", "aria-label": "New subtask" },
+    });
+    const controls = editor.createDiv({ cls: "tfa-subtask-controls" });
+    const save = controls.createEl("button", { text: "Add subtask" });
+    const cancel = controls.createEl("button", { text: "Cancel" });
+    let saving = false;
+    let closed = false;
+    const finish = () => {
+      if (closed) return;
+      closed = true;
+      editor.remove();
+      this.editingLineNo = null;
+      this.dismissSubtaskEditor = null;
+      this.pendingRender = false;
+    };
+    this.dismissSubtaskEditor = finish;
+    const close = () => {
+      if (saving) return;
+      finish();
+      row.querySelector<HTMLElement>(".tfa-add-child")?.focus();
+      this.scheduleRender(0);
+    };
+    const commit = async () => {
+      if (saving || closed || !input.value.trim()) return;
+      saving = true;
+      input.disabled = save.disabled = cancel.disabled = true;
+      const timer = this.plugin.timers.running;
+      let timerLine: number | null = null;
+      let parentKey: string | undefined;
+      try {
+        await this.plugin.app.vault.process(file, (content) => {
+          const lines = content.split("\n");
+          const parentLine = locateLine(lines, lineNo, rawLine);
+          parentKey = parentLine === null ? undefined : scanListBranches(content, this.palette).get(parentLine)?.key;
+          const next = insertSubtask(content, lineNo, rawLine, input.value, this.palette);
+          if (timer?.filePath === file.path) {
+            const current = locateLine(lines, timer.lineNo, timer.lineText);
+            if (current !== null && parentLine !== null) timerLine = current > parentLine ? current + 1 : current;
+          }
+          return next;
+        });
+      } catch (error) {
+        saving = false;
+        input.disabled = save.disabled = cancel.disabled = false;
+        if (!closed) input.focus();
+        throw error;
+      }
+      // The note is saved: close before any follow-up that could fail, so retry
+      // cannot insert the same child twice.
+      finish();
+      if (parentKey) this.foldsByFile.get(file.path)?.delete(parentKey);
+      try {
+        if (timer && timerLine !== null && timerLine !== timer.lineNo) {
+          await this.plugin.timers.reanchor(file.path, timer.lineNo, timer.lineText, timerLine, timer.lineText);
+        }
+      } finally {
+        this.scheduleRender(0);
+      }
+    };
+    save.addEventListener("click", () => safe(commit()));
+    cancel.addEventListener("click", close);
+    input.addEventListener("keydown", (event) => {
+      if (event.isComposing) return;
+      if (event.key === "Enter") { event.preventDefault(); safe(commit()); }
+      else if (event.key === "Escape") { event.preventDefault(); close(); }
+    });
+    input.focus();
   }
 
   // ---------- действия ----------
