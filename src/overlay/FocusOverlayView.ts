@@ -90,6 +90,7 @@ export class FocusOverlayView extends ItemView {
   private totalBaseSeconds = 0;
   /** Черновик поля «+ задача». null = поле закрыто. Переживает ререндер. */
   private addDraft: string | null = null;
+  private sliderMode: "opacity" | "scale" = "opacity";
   /** Строка в режиме инлайн-редактирования (ререндер откладывается). */
   private editingLineNo: number | null = null;
   private dismissSubtaskEditor: (() => void) | null = null;
@@ -399,17 +400,31 @@ export class FocusOverlayView extends ItemView {
     }
     const footer = built.createDiv({ cls: "tfa-add" });
     this.renderAddRowButton(footer);
-    const opacityControl = footer.createEl("label", { cls: "tfa-opacity" });
-    const opacityIcon = opacityControl.createSpan({ cls: "tfa-opacity-icon" });
-    opacityIcon.setAttribute("aria-hidden", "true");
-    setIcon(opacityIcon, "eye");
-    const opacitySlider = opacityControl.createEl("input", {
-      type: "range",
-      attr: { min: "0.5", max: "1", step: "0.05", "aria-label": "Window opacity" },
+    const sliderControl = footer.createDiv({ cls: "tfa-opacity" });
+    const modeButton = sliderControl.createEl("button", { cls: "tfa-slider-mode" });
+    const slider = sliderControl.createEl("input", { type: "range" });
+    const configureSlider = () => {
+      const scale = this.sliderMode === "scale";
+      setIcon(modeButton, scale ? "search" : "eye");
+      modeButton.setAttribute("aria-label", scale ? "Switch to opacity" : "Switch to text size");
+      modeButton.setAttribute("title", scale ? "Text size: switch to opacity" : "Opacity: switch to text size");
+      slider.min = scale ? "11" : "0.5";
+      slider.max = scale ? "18" : "1";
+      slider.step = scale ? "1" : "0.05";
+      slider.value = String(scale ? this.plugin.settings.fontSize : this.plugin.settings.opacity);
+      slider.setAttribute("aria-label", scale ? "Text size" : "Window opacity");
+    };
+    configureSlider();
+    modeButton.addEventListener("click", () => {
+      this.sliderMode = this.sliderMode === "opacity" ? "scale" : "opacity";
+      configureSlider();
     });
-    opacitySlider.value = String(this.plugin.settings.opacity);
-    opacitySlider.addEventListener("change", () => {
-      safe(this.plugin.updateSettings({ opacity: Number(opacitySlider.value) }));
+    slider.addEventListener("input", () => {
+      if (this.sliderMode === "scale") this.contentEl.style.setProperty("--tfa-font-size", `${slider.value}px`);
+    });
+    slider.addEventListener("change", () => {
+      safe(this.plugin.updateSettings(this.sliderMode === "scale"
+        ? { fontSize: Number(slider.value) } : { opacity: Number(slider.value) }));
     });
     if (taskCount > 0) {
       footer.createSpan({ cls: "tfa-count", text: `${doneCount}/${taskCount}` });

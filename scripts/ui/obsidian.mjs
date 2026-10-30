@@ -38,6 +38,7 @@ export const MarkdownRenderer = {
 };
 export function setIcon(el, name) {
   const paths = {
+    search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     "chevron-right": '<path d="m9 18 6-6-6-6"/>',
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
