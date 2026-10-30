@@ -399,6 +399,18 @@ export class FocusOverlayView extends ItemView {
     }
     const footer = built.createDiv({ cls: "tfa-add" });
     this.renderAddRowButton(footer);
+    const opacityControl = footer.createEl("label", { cls: "tfa-opacity" });
+    const opacityIcon = opacityControl.createSpan({ cls: "tfa-opacity-icon" });
+    opacityIcon.setAttribute("aria-hidden", "true");
+    setIcon(opacityIcon, "eye");
+    const opacitySlider = opacityControl.createEl("input", {
+      type: "range",
+      attr: { min: "0.5", max: "1", step: "0.05", "aria-label": "Window opacity" },
+    });
+    opacitySlider.value = String(this.plugin.settings.opacity);
+    opacitySlider.addEventListener("change", () => {
+      safe(this.plugin.updateSettings({ opacity: Number(opacitySlider.value) }));
+    });
     if (taskCount > 0) {
       footer.createSpan({ cls: "tfa-count", text: `${doneCount}/${taskCount}` });
     }
