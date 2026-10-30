@@ -1,5 +1,17 @@
 # Always-on-Top Tasks
 
+## Quick start: open the floating panel (PiP)
+
+1. Install and enable **Always-on-Top Tasks** in Obsidian's community plugins.
+2. Open the note you want to keep visible.
+3. Press **Cmd + P** on **Mac**, or **Ctrl + P** on **Windows/Linux**, to open the command palette.
+4. Type **Open current note as focus overlay**, select that command under **Always-on-Top Tasks**, and press **Enter**.
+
+Your note opens in a floating, always-on-top task panel. To hide or reopen it,
+use the command palette again and choose **Toggle focus overlay**. You can also
+assign your own shortcut to either command in **Settings → Hotkeys**.
+
+
 Keep one note visible in a compact, always-on-top panel for Obsidian. Organize
 nested tasks, add subtasks from the panel, track time, and mark progress with
 emoji. Tasks and elapsed time stay in your Markdown note.
